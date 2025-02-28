@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>US County Heatmap</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .county {
+            stroke: #000000;
+            stroke-width: 0.5px;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ddd;
+            padding: 8px;
+            pointer-events: none;
+            font-family: sans-serif;
+            font-size: 12px;
+        }
+        .legend-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <svg id="map" width="960" height="600"></svg>
+        <div class="legend-container">
+            <svg id="legend" width="500" height="60"></svg>
+        </div>
+    </div>
+    
+    <script>
+        const width = 960, height = 600;
+        const svg = d3.select("#map");
+        
+        // Create tooltip div
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        // Load county map data
+        d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(us => {
+            const counties = topojson.feature(us, us.objects.counties);
+
+            // Load and process CSV data
+            d3.csv("Cleaned_Package_Data_County_FIPS.csv").then(data => {
+                // Filter out entries with empty County FIPS
+                const filteredData = data.filter(d => d["County FIPS"] && d["County FIPS"].trim() !== "");
+                
+                // Create a mapping of County FIPS to count
+                let countyCounts = d3.rollup(filteredData, v => v.length, d => d["County FIPS"]);
+
+                // Find the maximum count value across all counties
+                const maxCount = d3.max([...countyCounts.values()]);
+                console.log(`Maximum count for a single county: ${maxCount}`);
+                
+                // Create a map of FIPS to county/state names for tooltip
+                const countyInfo = new Map();
+                filteredData.forEach(d => {
+                    countyInfo.set(d["County FIPS"], {
+                        county: d["Origin County"],
+                        state: d["Origin State"]
+                    });
+                });
+
+                // Define color scale from white to red based on the maximum count for any county
+                const colorScale = d3.scaleLinear()
+                    .domain([0, maxCount])
+                    .range(["#ffffff", "#ff0000"]);
+
+                const path = d3.geoPath();
+
+                svg.append("g")
+                    .selectAll("path")
+                    .data(counties.features)
+                    .enter().append("path")
+                    .attr("class", "county")
+                    .attr("d", path)
+                    .attr("fill", d => {
+                        const countyFIPS = d.id;
+                        if (countyCounts.has(countyFIPS)) {
+                            return colorScale(countyCounts.get(countyFIPS));
+                        } else {
+                            return "#ffffff"; // White for counties with no data
+                        }
+                    })
+                    .on("mouseover", function(event, d) {
+                        const countyFIPS = d.id;
+                        const count = countyCounts.has(countyFIPS) ? countyCounts.get(countyFIPS) : 0;
+                        const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
+
+                        // Don't show tooltip if count is 0 since that means we don't even have state and county names for it
+                        if (count === 0) {
+                            return;
+                        }
+                        
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", 0.9);
+                        tooltip.html(`
+                            <strong>${info.county}, ${info.state}</strong><br>
+                            FIPS: ${countyFIPS}<br>
+                            Count: ${count}
+                        `)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                        
+                        d3.select(this)
+                            .style("stroke-width", "2px");
+                    })
+                    .on("mouseout", function() {
+                        tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                        
+                        d3.select(this)
+                            .style("stroke-width", "0.5px");
+                    });
+                
+                // Create legend in a separate SVG below the map
+                const legendSvg = d3.select("#legend");
+                const legendWidth = 300;
+                const legendHeight = 20;
+                const legendMargin = { top: 20, right: 20, bottom: 20, left: 20 };
+                
+                // Create gradient for legend
+                const defs = legendSvg.append("defs");
+                const gradient = defs.append("linearGradient")
+                    .attr("id", "legend-gradient")
+                    .attr("x1", "0%")
+                    .attr("x2", "100%")
+                    .attr("y1", "0%")
+                    .attr("y2", "0%");
+                
+                gradient.append("stop")
+                    .attr("offset", "0%")
+                    .attr("stop-color", "#ffffff")
+                    .attr("stop-opacity", 1);
+                
+                gradient.append("stop")
+                    .attr("offset", "100%")
+                    .attr("stop-color", "#ff0000")
+                    .attr("stop-opacity", 1);
+                
+                // Create legend group and position it in the center
+                const legend = legendSvg.append("g")
+                    .attr("transform", `translate(${(500 - legendWidth) / 2}, ${legendMargin.top})`);
+                
+                // Add rectangle with gradient
+                legend.append("rect")
+                    .attr("width", legendWidth)
+                    .attr("height", legendHeight)
+                    .style("fill", "url(#legend-gradient)")
+                    .style("stroke", "#ccc")
+                    .style("stroke-width", "1px");
+                
+                // Add legend title
+                legendSvg.append("text")
+                    .attr("x", 500 / 2)
+                    .attr("y", 15)
+                    .style("text-anchor", "middle")
+                    .style("font-weight", "bold")
+                    .text("County Count");
+                
+                // Add legend labels
+                legend.append("text")
+                    .attr("x", 0)
+                    .attr("y", legendHeight + 15)
+                    .style("text-anchor", "start")
+                    .text("0");
+                
+                legend.append("text")
+                    .attr("x", legendWidth)
+                    .attr("y", legendHeight + 15)
+                    .style("text-anchor", "end")
+                    .text(maxCount);
+                
+                // Add intermediate ticks
+                const numTicks = 4;
+                for (let i = 1; i < numTicks; i++) {
+                    const tickValue = Math.round(maxCount * (i / numTicks));
+                    const xPos = (legendWidth * i) / numTicks;
+                    
+                    // Add tick line
+                    legend.append("line")
+                        .attr("x1", xPos)
+                        .attr("x2", xPos)
+                        .attr("y1", legendHeight)
+                        .attr("y2", legendHeight + 5)
+                        .style("stroke", "#000")
+                        .style("stroke-width", "1px");
+                    
+                    // Add tick label
+                    legend.append("text")
+                        .attr("x", xPos)
+                        .attr("y", legendHeight + 15)
+                        .style("text-anchor", "middle")
+                        .text(tickValue);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
