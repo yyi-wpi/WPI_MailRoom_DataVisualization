@@ -58,12 +58,19 @@
         
         // Create zoom behavior
         const zoom = d3.zoom()
-            .scaleExtent([1, 8])  // Zoom limits (1x to 8x)
+            .scaleExtent([1, 100])
             .on("zoom", (event) => {
                 gMap.attr("transform", event.transform); // Apply zoom transform
+
+                const currentScale = event.transform.k;
+                const countyStrokeWidth = Math.max(0.3 / currentScale, 0.05);
+                const stateStrokeWidth = Math.max(2 / currentScale, 0.2);
+
+                d3.selectAll(".county").style("stroke-width", countyStrokeWidth + "px");
+                d3.selectAll(".state").style("stroke-width", stateStrokeWidth + "px");
             });
 
-        svg.call(zoom); // Attach zoom behavior
+        svg.call(zoom);
 
         // Create tooltip div
         const tooltip = d3.select("body").append("div")
@@ -106,6 +113,9 @@
                     .attr("d", path)
                     .attr("fill", d => getColor(countyCounts.get(d.id) || 0))
                     .on("mouseover", function(event, d) {
+                        const currentScale = d3.zoomTransform(svg.node()).k; 
+                        const hoverStrokeWidth = Math.max(1 / currentScale, 0.2); 
+
                         const countyFIPS = d.id;
                         const count = countyCounts.get(countyFIPS) || 0;
                         const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
@@ -118,16 +128,19 @@
                             .style("top", (event.pageY - 28) + "px");
 
                         d3.select(this)
-                            .style("stroke", "black")  // Change border color to black
-                            .style("stroke-width", "1px")  // Set intermediate stroke width
-                            .raise();  // Move the hovered county to the top
+                            .style("stroke", "black")
+                            .style("stroke-width", hoverStrokeWidth + "px") // Adjust stroke width dynamically
+                            .raise();
                     })
                     .on("mouseout", function() {
+                        const currentScale = d3.zoomTransform(svg.node()).k; 
+                        const normalStrokeWidth = Math.max(0.3 / currentScale, 0.05); 
+
                         tooltip.transition().duration(500).style("opacity", 0);
 
                         d3.select(this)
-                            .style("stroke", "#bbb")  // Restore original border color
-                            .style("stroke-width", "0.3px");  // Restore default stroke width
+                            .style("stroke", "#bbb") 
+                            .style("stroke-width", normalStrokeWidth + "px"); // Restore to dynamic stroke width
                     });
 
                 gMap.append("path")
