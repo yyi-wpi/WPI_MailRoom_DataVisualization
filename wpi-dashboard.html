@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WPI Mailroom Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        :root {
+            --wpi-crimson: #AC2B37;
+            --wpi-gray: #A9B0B7;
+            --wpi-black: #000000;
+            --wpi-dark-gray: #333333;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: var(--wpi-dark-gray);
+        }
+        
+        header {
+            background-color: var(--wpi-crimson);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        
+        .visualization-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+        
+        h2 {
+            color: var(--wpi-crimson);
+            border-bottom: 2px solid var(--wpi-gray);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        
+        .county {
+            stroke: #bbb;
+            stroke-width: 0.3px;
+        }
+        
+        .state {
+            stroke: var(--wpi-dark-gray);
+            stroke-width: 2px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--wpi-dark-gray);
+            padding: 15px;
+            pointer-events: none;
+            font-family: sans-serif;
+            color: var(--wpi-dark-gray);
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .legend-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        #map {
+            display: block;
+            margin: 0 auto;
+        }
+        
+        #sankey-diagram {
+            width: 100%;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>WPI Mailroom Dashboard</h1>
+    </header>
+    
+    <div class="dashboard-container">
+        <div class="visualization-container">
+            <h2>📊 Package Flow</h2>
+            <div id="sankey-diagram"></div>
+        </div>
+        
+        <div class="visualization-container">
+            <h2>📍 Package Origin by County</h2>
+            <svg id="map" width="960" height="600">
+                <g id="gMap"></g>
+            </svg>
+            <div class="legend-container">
+                <svg id="legend" width="500" height="60"></svg>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Load the CSV data
+        d3.csv("Cleaned_Package_Data_County_FIPS.csv").then(data => {
+            // Process data for Sankey diagram
+            createSankeyDiagram(data);
+            
+            // Create county map (uses the same data)
+            createCountyMap(data);
+        });
+        
+        function createSankeyDiagram(data) {
+            // Calculate processing times
+            let routedToStored = 0;
+            let storedToDelivered = 0;
+            let count = 0;
+            
+            data.forEach(d => {
+                const routedTime = new Date(d["Routed Date Time"]);
+                const storedTime = new Date(d["Stored Date Time"]);
+                const deliveredTime = new Date(d["Delivered Date Time"]);
+                
+                if (!isNaN(routedTime) && !isNaN(storedTime) && !isNaN(deliveredTime)) {
+                    routedToStored += (storedTime - routedTime) / (1000 * 60 * 60); // hours
+                    storedToDelivered += (deliveredTime - storedTime) / (1000 * 60 * 60); // hours
+                    count++;
+                }
+            });
+            
+            // Calculate averages
+            routedToStored = count > 0 ? routedToStored / count : 0;
+            storedToDelivered = count > 0 ? storedToDelivered / count : 0;
+            
+            // Define Sankey diagram data
+            const sankeyData = {
+                node: {
+                    label: ["📦 Arrived", "📍 Sorting", "📦 Storage", "🚀 Out for Delivery", "🏡 Delivered"],
+                    color: ["#AC2B37", "#A9B0B7", "#AC2B37", "#A9B0B7", "#AC2B37"]
+                },
+                link: {
+                    source: [0, 1, 1, 2, 2],
+                    target: [1, 2, 3, 3, 4],
+                    value: [routedToStored, storedToDelivered, data.length * 0.4, data.length * 0.3, data.length * 0.1],
+                    color: ["rgba(172, 43, 55, 0.6)", "rgba(169, 176, 183, 0.6)", "rgba(172, 43, 55, 0.6)", 
+                           "rgba(169, 176, 183, 0.6)", "rgba(172, 43, 55, 0.6)"]
+                }
+            };
+            
+            // Create the Sankey diagram
+            const layout = {
+                title: "",
+                font: {
+                    size: 12
+                },
+                margin: {
+                    l: 20,
+                    r: 20,
+                    t: 20,
+                    b: 20
+                }
+            };
+            
+            Plotly.newPlot('sankey-diagram', [{
+                type: "sankey",
+                orientation: "h",
+                node: sankeyData.node,
+                link: sankeyData.link
+            }], layout);
+        }
+        
+        function createCountyMap(csvData) {
+            const width = 960, height = 600;
+            const svg = d3.select("#map");
+            const gMap = svg.select("#gMap"); // Group for panning and zooming
+            
+            // Create zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([1, 100])
+                .on("zoom", (event) => {
+                    gMap.attr("transform", event.transform);
+                    
+                    const currentScale = event.transform.k;
+                    const countyStrokeWidth = Math.max(0.3 / currentScale, 0.05);
+                    const stateStrokeWidth = Math.max(2 / currentScale, 0.2);
+                    
+                    d3.selectAll(".county").style("stroke-width", countyStrokeWidth + "px");
+                    d3.selectAll(".state").style("stroke-width", stateStrokeWidth + "px");
+                });
+            
+            svg.call(zoom);
+            
+            // Create tooltip div
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+            
+            // Load county map data
+            d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(us => {
+                const counties = topojson.feature(us, us.objects.counties);
+                const states = topojson.mesh(us, us.objects.states);
+                
+                // Process CSV data
+                const filteredData = csvData.filter(d => d["County FIPS"] && d["County FIPS"].trim() !== "");
+                let countyCounts = d3.rollup(filteredData, v => v.length, d => d["County FIPS"]);
+                const maxCount = d3.max([...countyCounts.values()]);
+                
+                const countyInfo = new Map();
+                filteredData.forEach(d => {
+                    countyInfo.set(d["County FIPS"], {
+                        county: d["Origin County"],
+                        state: d["Origin State"]
+                    });
+                });
+                
+                // Use WPI crimson for the color scale
+                const colorScale = d3.scaleLog()
+                    .domain([1, maxCount])
+                    .range(["#f5e6e8", "#AC2B37"]) // Light pink to WPI crimson
+                    .clamp(true);
+                
+                const getColor = (count) => count > 0 ? colorScale(count) : "#fcfcfc";
+                const path = d3.geoPath();
+                
+                gMap.append("g")
+                    .selectAll("path")
+                    .data(counties.features)
+                    .enter().append("path")
+                    .attr("class", "county")
+                    .attr("d", path)
+                    .attr("fill", d => getColor(countyCounts.get(d.id) || 0))
+                    .on("mouseover", function(event, d) {
+                        const currentScale = d3.zoomTransform(svg.node()).k;
+                        const hoverStrokeWidth = Math.max(1 / currentScale, 0.2);
+                        
+                        const countyFIPS = d.id;
+                        const count = countyCounts.get(countyFIPS) || 0;
+                        const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
+                        
+                        if (count === 0) return;
+                        
+                        tooltip.transition().duration(200).style("opacity", 1);
+                        tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}`)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                        
+                        d3.select(this)
+                            .style("stroke", "black")
+                            .style("stroke-width", hoverStrokeWidth + "px")
+                            .raise();
+                    })
+                    .on("mouseout", function() {
+                        const currentScale = d3.zoomTransform(svg.node()).k;
+                        const normalStrokeWidth = Math.max(0.3 / currentScale, 0.05);
+                        
+                        tooltip.transition().duration(500).style("opacity", 0);
+                        
+                        d3.select(this)
+                            .style("stroke", "#bbb")
+                            .style("stroke-width", normalStrokeWidth + "px");
+                    });
+                
+                gMap.append("path")
+                    .datum(states)
+                    .attr("class", "state")
+                    .attr("d", path)
+                    .attr("fill", "none");
+                
+                // Legend setup
+                const legendSvg = d3.select("#legend");
+                const legendWidth = 300, legendHeight = 20;
+                
+                const logScale = d3.scaleLog()
+                    .domain([1, maxCount])
+                    .range([0, legendWidth]);
+                
+                const defs = legendSvg.append("defs");
+                const gradient = defs.append("linearGradient")
+                    .attr("id", "legend-gradient")
+                    .attr("x1", "0%").attr("x2", "100%")
+                    .attr("y1", "0%").attr("y2", "0%");
+                
+                const numStops = 10;
+                for (let i = 0; i <= numStops; i++) {
+                    const t = i / numStops;
+                    const logValue = Math.pow(maxCount, t);
+                    gradient.append("stop")
+                        .attr("offset", `${t * 100}%`)
+                        .attr("stop-color", colorScale(logValue));
+                }
+                
+                const legend = legendSvg.append("g")
+                    .attr("transform", `translate(${(500 - legendWidth) / 2}, 20)`);
+                
+                legend.append("rect")
+                    .attr("width", legendWidth)
+                    .attr("height", legendHeight)
+                    .style("fill", "url(#legend-gradient)")
+                    .style("stroke", "#ccc")
+                    .style("stroke-width", "1px");
+                
+                legendSvg.append("text")
+                    .attr("x", 500 / 2)
+                    .attr("y", 15)
+                    .style("text-anchor", "middle")
+                    .style("font-weight", "bold")
+                    .text("Packages from County (Log Scale)");
+                
+                const tickValues = [];
+                let baseTick = 1;
+                while (baseTick <= maxCount) {
+                    tickValues.push(baseTick);
+                    baseTick *= 10;
+                }
+                
+                if (maxCount < 10) tickValues.splice(1, 0, 2, 5);
+                
+                tickValues.forEach(value => {
+                    if (value <= maxCount && value > 1) {
+                        const xPos = logScale(value);
+                        legend.append("line")
+                            .attr("x1", xPos).attr("x2", xPos)
+                            .attr("y1", legendHeight).attr("y2", legendHeight + 5)
+                            .style("stroke", "#000").style("stroke-width", "1px");
+                        
+                        legend.append("text")
+                            .attr("x", xPos)
+                            .attr("y", legendHeight + 15)
+                            .style("text-anchor", "middle")
+                            .text(value);
+                    }
+                });
+                
+                // Add min and max labels
+                legend.append("text")
+                    .attr("x", 0)
+                    .attr("y", legendHeight + 15)
+                    .style("text-anchor", "middle")
+                    .text("1");
+                
+                legend.append("line")
+                    .attr("x1", 0)
+                    .attr("x2", 0)
+                    .attr("y1", legendHeight)
+                    .attr("y2", legendHeight + 5)
+                    .style("stroke", "#000")
+                    .style("stroke-width", "1px");
+                
+                legend.append("text")
+                    .attr("x", legendWidth)
+                    .attr("y", legendHeight + 15)
+                    .style("text-anchor", "middle")
+                    .text(maxCount);
+                
+                legend.append("line")
+                    .attr("x1", legendWidth)
+                    .attr("x2", legendWidth)
+                    .attr("y1", legendHeight)
+                    .attr("y2", legendHeight + 5)
+                    .style("stroke", "#000")
+                    .style("stroke-width", "1px");
+            });
+        }
+    </script>
+</body>
+</html>
