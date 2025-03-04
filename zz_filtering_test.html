@@ -72,7 +72,7 @@
 <body>
     <div class="container">
         <div class="title">US County Package Distribution</div>
-        <div class="subtitle">Click on a carrier to filter the map</div>
+        <div class="subtitle">Click on a carrier to filter the map or a county to filter carriers</div>
         
         <!-- Carrier bar chart container -->
         <div class="carrier-chart">
@@ -137,7 +137,8 @@
         const defaultCarrierColor = "#2E8B57"; 
 
         // Current filter state
-        let currentFilter = null;
+        let currentCarrierFilter = null;
+        let currentCountyFilter = null;
 
         // Load county map data
         d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(us => {
@@ -217,7 +218,7 @@
                         if (count === 0) return;
 
                         tooltip.transition().duration(200).style("opacity", 1);
-                        tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}`)
+                        tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}<br>Click to filter carriers`)
                             .style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 28) + "px");
 
@@ -232,9 +233,16 @@
 
                         tooltip.transition().duration(500).style("opacity", 0);
 
-                        d3.select(this)
-                            .style("stroke", "#bbb") 
-                            .style("stroke-width", normalStrokeWidth + "px");
+                        // Only change stroke back if not the current filter
+                        if (!currentCountyFilter || d3.select(this).datum().id !== currentCountyFilter) {
+                            d3.select(this)
+                                .style("stroke", "#bbb") 
+                                .style("stroke-width", normalStrokeWidth + "px");
+                        }
+                    })
+                    .on("click", function(event, d) {
+                        if (countyCounts.get(d.id) === 0) return; // Don't filter on counties with no data
+                        filterBarChartByCounty(d.id);
                     });
 
                 // Create state boundaries
@@ -290,7 +298,7 @@
                         .attr("y", 15)
                         .style("text-anchor", "middle")
                         .style("font-weight", "bold")
-                        .text(currentFilter ? `Packages from County (${currentFilter} Only)` : "Packages from County (Log Scale)");
+                        .text(currentCarrierFilter ? `Packages from County (${currentCarrierFilter} Only)` : "Packages from County (Log Scale)");
 
                     const tickValues = [];
                     let baseTick = 1;
@@ -425,18 +433,23 @@
                 // Function to filter map by carrier
                 function filterMapByCarrier(carrier) {
                     // Update filter state
-                    if (currentFilter === carrier) {
+                    if (currentCarrierFilter === carrier) {
                         // If clicking the same carrier again, reset filter
-                        currentFilter = null;
-                        filteredMapData = fullData;
+                        currentCarrierFilter = null;
+                        filteredMapData = currentCountyFilter ? 
+                            fullData.filter(d => d["County FIPS"] === currentCountyFilter) : 
+                            fullData;
                     } else {
                         // Set new filter
-                        currentFilter = carrier;
-                        filteredMapData = fullData.filter(d => 
-                            carrier === "Other" 
+                        currentCarrierFilter = carrier;
+                        filteredMapData = fullData.filter(d => {
+                            const carrierMatch = carrier === "Other" 
                                 ? !d["Carrier"] || d["Carrier"] === "Unknown" || !carrierColors[d["Carrier"]]
-                                : d["Carrier"] === carrier
-                        );
+                                : d["Carrier"] === carrier;
+                            
+                            // Apply county filter if active
+                            return carrierMatch && (!currentCountyFilter || d["County FIPS"] === currentCountyFilter);
+                        });
                     }
                     
                     // Update map with filtered data
@@ -444,14 +457,97 @@
                     
                     // Update bar chart highlighting
                     d3.selectAll(".bar")
-                        .attr("opacity", d => currentFilter && d.carrier !== currentFilter ? 0.5 : 1)
-                        .attr("stroke-width", d => d.carrier === currentFilter ? "2px" : "1px");
+                        .attr("opacity", d => currentCarrierFilter && d.carrier !== currentCarrierFilter ? 0.5 : 1)
+                        .attr("stroke-width", d => d.carrier === currentCarrierFilter ? "2px" : "1px");
                     
                     // Update subtitle
-                    d3.select(".subtitle")
-                        .text(currentFilter 
-                            ? `Showing packages from ${currentFilter} carrier - Click on ${currentFilter} again to reset` 
-                            : "Click on a carrier to filter the map");
+                    updateSubtitle();
+                }
+                
+                function filterBarChartByCounty(countyFIPS) {
+                    // Get county info
+                    const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
+                    
+                    // Update filter state
+                    if (currentCountyFilter === countyFIPS) {
+                        // If clicking the same county again, reset filter
+                        currentCountyFilter = null;
+                        
+                        // Apply only carrier filter if active
+                        filteredMapData = currentCarrierFilter ? 
+                            fullData.filter(d => {
+                                return currentCarrierFilter === "Other" 
+                                    ? !d["Carrier"] || d["Carrier"] === "Unknown" || !carrierColors[d["Carrier"]]
+                                    : d["Carrier"] === currentCarrierFilter;
+                            }) : 
+                            fullData;
+                            
+                        // Reset county highlight
+                        d3.selectAll(".county")
+                            .style("stroke", "#bbb")
+                            .style("stroke-width", d => {
+                                const currentScale = d3.zoomTransform(svg.node()).k;
+                                return Math.max(0.3 / currentScale, 0.05) + "px";
+                            });
+                    } else {
+                        // Set new filter
+                        currentCountyFilter = countyFIPS;
+                        
+                        // Filter data
+                        filteredMapData = fullData.filter(d => {
+                            const countyMatch = d["County FIPS"] === countyFIPS;
+                            
+                            // Apply carrier filter if active
+                            if (currentCarrierFilter) {
+                                return countyMatch && (currentCarrierFilter === "Other" 
+                                    ? !d["Carrier"] || d["Carrier"] === "Unknown" || !carrierColors[d["Carrier"]]
+                                    : d["Carrier"] === currentCarrierFilter);
+                            }
+                            
+                            return countyMatch;
+                        });
+                        
+                        // Highlight selected county
+                        d3.selectAll(".county")
+                            .style("stroke", d => d.id === countyFIPS ? "#ff6600" : "#bbb")
+                            .style("stroke-width", d => {
+                                const currentScale = d3.zoomTransform(svg.node()).k;
+                                return d.id === countyFIPS ? 
+                                    Math.max(2 / currentScale, 0.2) + "px" : 
+                                    Math.max(0.3 / currentScale, 0.05) + "px";
+                            });
+                    }
+                    
+                    // Recalculate carrier data based on filtered data
+                    const carrierData = processCarrierData(filteredMapData);
+                    
+                    // Clear and recreate carrier chart
+                    d3.select("#barChart").selectAll("*").remove();
+                    createCarrierChart(carrierData);
+                    
+                    // Update map
+                    updateMap();
+                    
+                    // Update subtitle
+                    updateSubtitle();
+                }
+                
+                function updateSubtitle() {
+                    let message = "";
+                    
+                    if (currentCarrierFilter && currentCountyFilter) {
+                        const info = countyInfo.get(currentCountyFilter);
+                        message = `Showing ${currentCarrierFilter} packages in ${info.county} County, ${info.state}`;
+                    } else if (currentCarrierFilter) {
+                        message = `Showing packages from ${currentCarrierFilter} carrier - Click on ${currentCarrierFilter} again to reset`;
+                    } else if (currentCountyFilter) {
+                        const info = countyInfo.get(currentCountyFilter);
+                        message = `Showing carrier distribution for ${info.county} County, ${info.state} - Click county again to reset`;
+                    } else {
+                        message = "Click on a carrier to filter the map or a county to filter carriers";
+                    }
+                    
+                    d3.select(".subtitle").text(message);
                 }
                 
                 // Function to update map with filtered data
