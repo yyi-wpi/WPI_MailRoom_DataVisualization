@@ -18,17 +18,22 @@
             align-items: center;
         }
         .county {
-            stroke: #000000;
-            stroke-width: 0.5px;
+            stroke: #bbb;
+            stroke-width: 0.3px;
+        }
+        .state {
+            stroke: #333;
+            stroke-width: 2px;
         }
         .tooltip {
             position: absolute;
             background-color: rgba(255, 255, 255, 0.9);
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid rgb(0, 0, 0);
+            padding: 15px;
             pointer-events: none;
             font-family: sans-serif;
-            font-size: 12px;
+            color: rgb(0, 0, 0);
+            border-radius: 5px;
         }
         .legend-container {
             margin-top: 20px;
@@ -38,7 +43,9 @@
 </head>
 <body>
     <div class="container">
-        <svg id="map" width="960" height="600"></svg>
+        <svg id="map" width="960" height="600">
+            <g id="gMap"></g>
+        </svg>
         <div class="legend-container">
             <svg id="legend" width="500" height="60"></svg>
         </div>
@@ -47,7 +54,17 @@
     <script>
         const width = 960, height = 600;
         const svg = d3.select("#map");
+        const gMap = svg.select("#gMap"); // Group for panning and zooming
         
+        // Create zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])  // Zoom limits (1x to 8x)
+            .on("zoom", (event) => {
+                gMap.attr("transform", event.transform); // Apply zoom transform
+            });
+
+        svg.call(zoom); // Attach zoom behavior
+
         // Create tooltip div
         const tooltip = d3.select("body").append("div")
             .attr("class", "tooltip")
@@ -55,21 +72,16 @@
 
         // Load county map data
         d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(us => {
+
             const counties = topojson.feature(us, us.objects.counties);
+            const states = topojson.mesh(us, us.objects.states);
 
             // Load and process CSV data
             d3.csv("Cleaned_Package_Data_County_FIPS.csv").then(data => {
-                // Filter out entries with empty County FIPS
                 const filteredData = data.filter(d => d["County FIPS"] && d["County FIPS"].trim() !== "");
-                
-                // Create a mapping of County FIPS to count
                 let countyCounts = d3.rollup(filteredData, v => v.length, d => d["County FIPS"]);
-
-                // Find the maximum count value across all counties
                 const maxCount = d3.max([...countyCounts.values()]);
-                console.log(`Maximum count for a single county: ${maxCount}`);
-                
-                // Create a map of FIPS to county/state names for tooltip
+
                 const countyInfo = new Map();
                 filteredData.forEach(d => {
                     countyInfo.set(d["County FIPS"], {
@@ -78,153 +90,109 @@
                     });
                 });
 
-                // Define a logarithmic color scale from white to red
-                // We add 1 to the values to handle cases where count is 0
                 const colorScale = d3.scaleLog()
                     .domain([1, maxCount])
                     .range(["#ffffff", "#ff0000"])
-                    .clamp(true);  // Clamp values outside the domain
+                    .clamp(true);
                 
-                // Function to safely apply the color scale
-                const getColor = (count) => {
-                    if (!count || count <= 0) return "#ffffff";
-                    return colorScale(count);
-                };
-
+                const getColor = (count) => count > 0 ? colorScale(count) : "#ffffff";
                 const path = d3.geoPath();
 
-                svg.append("g")
+                gMap.append("g")
                     .selectAll("path")
                     .data(counties.features)
                     .enter().append("path")
                     .attr("class", "county")
                     .attr("d", path)
-                    .attr("fill", d => {
-                        const countyFIPS = d.id;
-                        if (countyCounts.has(countyFIPS)) {
-                            return getColor(countyCounts.get(countyFIPS));
-                        } else {
-                            return "#ffffff"; // White for counties with no data
-                        }
-                    })
+                    .attr("fill", d => getColor(countyCounts.get(d.id) || 0))
                     .on("mouseover", function(event, d) {
                         const countyFIPS = d.id;
-                        const count = countyCounts.has(countyFIPS) ? countyCounts.get(countyFIPS) : 0;
+                        const count = countyCounts.get(countyFIPS) || 0;
                         const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
 
-                        // Don't show tooltip if count is 0 since that means we don't even have state and county names for it
-                        if (count === 0) {
-                            return;
-                        }
-                        
-                        tooltip.transition()
-                            .duration(200)
-                            .style("opacity", 0.9);
-                        tooltip.html(`
-                            <strong>${info.county}, ${info.state}</strong><br>
-                            FIPS: ${countyFIPS}<br>
-                            Count: ${count}
-                        `)
+                        if (count === 0) return;
+
+                        tooltip.transition().duration(200).style("opacity", 1);
+                        tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}`)
                             .style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 28) + "px");
-                        
+
                         d3.select(this)
-                            .style("stroke-width", "2px");
+                            .style("stroke", "black")  // Change border color to black
+                            .style("stroke-width", "1px")  // Set intermediate stroke width
+                            .raise();  // Move the hovered county to the top
                     })
                     .on("mouseout", function() {
-                        tooltip.transition()
-                            .duration(500)
-                            .style("opacity", 0);
-                        
+                        tooltip.transition().duration(500).style("opacity", 0);
+
                         d3.select(this)
-                            .style("stroke-width", "0.5px");
+                            .style("stroke", "#bbb")  // Restore original border color
+                            .style("stroke-width", "0.3px");  // Restore default stroke width
                     });
-                
-                // Create legend in a separate SVG below the map
+
+                gMap.append("path")
+                    .datum(states)
+                    .attr("class", "state")
+                    .attr("d", path)
+                    .attr("fill", "none");
+
+                // Legend setup
                 const legendSvg = d3.select("#legend");
-                const legendWidth = 300;
-                const legendHeight = 20;
-                const legendMargin = { top: 20, right: 20, bottom: 20, left: 20 };
+                const legendWidth = 300, legendHeight = 20, legendMargin = { top: 20, right: 20, bottom: 20, left: 20 };
                 
-                // Create logarithmic ticks for the legend
                 const logScale = d3.scaleLog()
                     .domain([1, maxCount])
                     .range([0, legendWidth]);
-                
-                // Create gradient for legend - we'll use multiple stops for the log scale
+
                 const defs = legendSvg.append("defs");
                 const gradient = defs.append("linearGradient")
                     .attr("id", "legend-gradient")
-                    .attr("x1", "0%")
-                    .attr("x2", "100%")
-                    .attr("y1", "0%")
-                    .attr("y2", "0%");
-                
-                // Add more gradient stops to better represent the log scale
+                    .attr("x1", "0%").attr("x2", "100%")
+                    .attr("y1", "0%").attr("y2", "0%");
+
                 const numStops = 10;
                 for (let i = 0; i <= numStops; i++) {
                     const t = i / numStops;
-                    // Use a power function to create exponential spacing
                     const logValue = Math.pow(maxCount, t);
-                    const position = t * 100;
-                    
-                    // Get color for this value using the same scale as the map
-                    const color = colorScale(logValue);
-                    
                     gradient.append("stop")
-                        .attr("offset", `${position}%`)
-                        .attr("stop-color", color);
+                        .attr("offset", `${t * 100}%`)
+                        .attr("stop-color", colorScale(logValue));
                 }
                 
-                // Create legend group and position it in the center
                 const legend = legendSvg.append("g")
                     .attr("transform", `translate(${(500 - legendWidth) / 2}, ${legendMargin.top})`);
-                
-                // Add rectangle with gradient
+
                 legend.append("rect")
                     .attr("width", legendWidth)
                     .attr("height", legendHeight)
                     .style("fill", "url(#legend-gradient)")
                     .style("stroke", "#ccc")
                     .style("stroke-width", "1px");
-                
-                // Add legend title
+
                 legendSvg.append("text")
                     .attr("x", 500 / 2)
                     .attr("y", 15)
                     .style("text-anchor", "middle")
                     .style("font-weight", "bold")
-                    .text("County Count (Log Scale)");
-                
-                // Create logarithmic tick values
-                // Using a custom approach to create more readable tick values
+                    .text("Packages from County (Log Scale)");
+
                 const tickValues = [];
                 let baseTick = 1;
                 while (baseTick <= maxCount) {
                     tickValues.push(baseTick);
-                    baseTick *= 10; // For each power of 10
+                    baseTick *= 10;
                 }
-                
-                // If maxCount is less than 10, add some intermediate values
-                if (maxCount < 10) {
-                    tickValues.splice(1, 0, 2, 5);
-                }
-                
-                // Add tick marks and labels
+
+                if (maxCount < 10) tickValues.splice(1, 0, 2, 5);
+
                 tickValues.forEach(value => {
-                    if (value <= maxCount) {
+                    if (value <= maxCount && value > 1) {
                         const xPos = logScale(value);
-                        
-                        // Add tick line
                         legend.append("line")
-                            .attr("x1", xPos)
-                            .attr("x2", xPos)
-                            .attr("y1", legendHeight)
-                            .attr("y2", legendHeight + 5)
-                            .style("stroke", "#000")
-                            .style("stroke-width", "1px");
-                        
-                        // Add tick label
+                            .attr("x1", xPos).attr("x2", xPos)
+                            .attr("y1", legendHeight).attr("y2", legendHeight + 5)
+                            .style("stroke", "#000").style("stroke-width", "1px");
+
                         legend.append("text")
                             .attr("x", xPos)
                             .attr("y", legendHeight + 15)
@@ -232,19 +200,36 @@
                             .text(value);
                     }
                 });
-                
+
                 // Add min and max labels
+                
                 legend.append("text")
                     .attr("x", 0)
                     .attr("y", legendHeight + 15)
-                    .style("text-anchor", "start")
+                    .style("text-anchor", "middle")
                     .text("1");
+                
+                legend.append("line")
+                    .attr("x1", 0)
+                    .attr("x2", 0)
+                    .attr("y1", legendHeight)
+                    .attr("y2", legendHeight + 5)
+                    .style("stroke", "#000")
+                    .style("stroke-width", "1px");
                 
                 legend.append("text")
                     .attr("x", legendWidth)
                     .attr("y", legendHeight + 15)
-                    .style("text-anchor", "end")
+                    .style("text-anchor", "middle")
                     .text(maxCount);
+
+                legend.append("line")
+                    .attr("x1", legendWidth)
+                    .attr("x2", legendWidth)
+                    .attr("y1", legendHeight)
+                    .attr("y2", legendHeight + 5)
+                    .style("stroke", "#000")
+                    .style("stroke-width", "1px");
             });
         });
     </script>
