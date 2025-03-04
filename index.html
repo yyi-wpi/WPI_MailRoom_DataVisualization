@@ -1,16 +1,237 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>County Map Links</title>
+    <title>US County Heatmap</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .county {
+            stroke: #bbb;
+            stroke-width: 0.3px;
+        }
+        .state {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgb(0, 0, 0);
+            padding: 15px;
+            pointer-events: none;
+            font-family: sans-serif;
+            color: rgb(0, 0, 0);
+            border-radius: 5px;
+        }
+        .legend-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <h1>Heatmaps of WPI Package Origins</h1>
-    <p>Click below to view different maps:</p>
-    <ul>
-        <li><a href="countymaplinear.html">County Map (Linear)</a></li>
-        <li><a href="countymaplog.html">County Map (Log)</a></li>
-    </ul>
+    <div class="container">
+        <svg id="map" width="960" height="600">
+            <g id="gMap"></g>
+        </svg>
+        <div class="legend-container">
+            <svg id="legend" width="500" height="60"></svg>
+        </div>
+    </div>
+    
+    <script>
+        const width = 960, height = 600;
+        const svg = d3.select("#map");
+        const gMap = svg.select("#gMap"); // Group for panning and zooming
+        
+        // Create zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])  // Zoom limits (1x to 8x)
+            .on("zoom", (event) => {
+                gMap.attr("transform", event.transform); // Apply zoom transform
+            });
+
+        svg.call(zoom); // Attach zoom behavior
+
+        // Create tooltip div
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        // Load county map data
+        d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(us => {
+
+            const counties = topojson.feature(us, us.objects.counties);
+            const states = topojson.mesh(us, us.objects.states);
+
+            // Load and process CSV data
+            d3.csv("Cleaned_Package_Data_County_FIPS.csv").then(data => {
+                const filteredData = data.filter(d => d["County FIPS"] && d["County FIPS"].trim() !== "");
+                let countyCounts = d3.rollup(filteredData, v => v.length, d => d["County FIPS"]);
+                const maxCount = d3.max([...countyCounts.values()]);
+
+                const countyInfo = new Map();
+                filteredData.forEach(d => {
+                    countyInfo.set(d["County FIPS"], {
+                        county: d["Origin County"],
+                        state: d["Origin State"]
+                    });
+                });
+
+                const colorScale = d3.scaleLog()
+                    .domain([1, maxCount])
+                    .range(["#ffe6e6", "#ff0000"]) // Make sure color for 1 is noticeably pink to destinguish from counties with 0
+                    .clamp(true);
+                
+                const getColor = (count) => count > 0 ? colorScale(count) : "#fcfcfc"; // Just barely gray for 0
+                const path = d3.geoPath();
+
+                gMap.append("g")
+                    .selectAll("path")
+                    .data(counties.features)
+                    .enter().append("path")
+                    .attr("class", "county")
+                    .attr("d", path)
+                    .attr("fill", d => getColor(countyCounts.get(d.id) || 0))
+                    .on("mouseover", function(event, d) {
+                        const countyFIPS = d.id;
+                        const count = countyCounts.get(countyFIPS) || 0;
+                        const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
+
+                        if (count === 0) return;
+
+                        tooltip.transition().duration(200).style("opacity", 1);
+                        tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}`)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+
+                        d3.select(this)
+                            .style("stroke", "black")  // Change border color to black
+                            .style("stroke-width", "1px")  // Set intermediate stroke width
+                            .raise();  // Move the hovered county to the top
+                    })
+                    .on("mouseout", function() {
+                        tooltip.transition().duration(500).style("opacity", 0);
+
+                        d3.select(this)
+                            .style("stroke", "#bbb")  // Restore original border color
+                            .style("stroke-width", "0.3px");  // Restore default stroke width
+                    });
+
+                gMap.append("path")
+                    .datum(states)
+                    .attr("class", "state")
+                    .attr("d", path)
+                    .attr("fill", "none");
+
+                // Legend setup
+                const legendSvg = d3.select("#legend");
+                const legendWidth = 300, legendHeight = 20, legendMargin = { top: 20, right: 20, bottom: 20, left: 20 };
+                
+                const logScale = d3.scaleLog()
+                    .domain([1, maxCount])
+                    .range([0, legendWidth]);
+
+                const defs = legendSvg.append("defs");
+                const gradient = defs.append("linearGradient")
+                    .attr("id", "legend-gradient")
+                    .attr("x1", "0%").attr("x2", "100%")
+                    .attr("y1", "0%").attr("y2", "0%");
+
+                const numStops = 10;
+                for (let i = 0; i <= numStops; i++) {
+                    const t = i / numStops;
+                    const logValue = Math.pow(maxCount, t);
+                    gradient.append("stop")
+                        .attr("offset", `${t * 100}%`)
+                        .attr("stop-color", colorScale(logValue));
+                }
+                
+                const legend = legendSvg.append("g")
+                    .attr("transform", `translate(${(500 - legendWidth) / 2}, ${legendMargin.top})`);
+
+                legend.append("rect")
+                    .attr("width", legendWidth)
+                    .attr("height", legendHeight)
+                    .style("fill", "url(#legend-gradient)")
+                    .style("stroke", "#ccc")
+                    .style("stroke-width", "1px");
+
+                legendSvg.append("text")
+                    .attr("x", 500 / 2)
+                    .attr("y", 15)
+                    .style("text-anchor", "middle")
+                    .style("font-weight", "bold")
+                    .text("Packages from County (Log Scale)");
+
+                const tickValues = [];
+                let baseTick = 1;
+                while (baseTick <= maxCount) {
+                    tickValues.push(baseTick);
+                    baseTick *= 10;
+                }
+
+                if (maxCount < 10) tickValues.splice(1, 0, 2, 5);
+
+                tickValues.forEach(value => {
+                    if (value <= maxCount && value > 1) {
+                        const xPos = logScale(value);
+                        legend.append("line")
+                            .attr("x1", xPos).attr("x2", xPos)
+                            .attr("y1", legendHeight).attr("y2", legendHeight + 5)
+                            .style("stroke", "#000").style("stroke-width", "1px");
+
+                        legend.append("text")
+                            .attr("x", xPos)
+                            .attr("y", legendHeight + 15)
+                            .style("text-anchor", "middle")
+                            .text(value);
+                    }
+                });
+
+                // Add min and max labels
+                
+                legend.append("text")
+                    .attr("x", 0)
+                    .attr("y", legendHeight + 15)
+                    .style("text-anchor", "middle")
+                    .text("1");
+                
+                legend.append("line")
+                    .attr("x1", 0)
+                    .attr("x2", 0)
+                    .attr("y1", legendHeight)
+                    .attr("y2", legendHeight + 5)
+                    .style("stroke", "#000")
+                    .style("stroke-width", "1px");
+                
+                legend.append("text")
+                    .attr("x", legendWidth)
+                    .attr("y", legendHeight + 15)
+                    .style("text-anchor", "middle")
+                    .text(maxCount);
+
+                legend.append("line")
+                    .attr("x1", legendWidth)
+                    .attr("x2", legendWidth)
+                    .attr("y1", legendHeight)
+                    .attr("y2", legendHeight + 5)
+                    .style("stroke", "#000")
+                    .style("stroke-width", "1px");
+            });
+        });
+    </script>
 </body>
 </html>
