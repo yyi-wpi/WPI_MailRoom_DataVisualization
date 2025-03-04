@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WPI Mailroom Dashboard</title>
+    
+    <!-- Load D3.js and TopoJSON -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    
+    <!-- Load Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <!-- Load PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    
+    <style>
+        :root {
+            --wpi-crimson: #AC2B37;
+            --wpi-gray: #A9B0B7;
+            --wpi-black: #000000;
+            --wpi-white: #FFFFFF;
+        }
+        
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: sans-serif;
+            background-color: var(--wpi-white);
+            color: var(--wpi-black);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background-color: var(--wpi-crimson);
+            color: var(--wpi-white);
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        
+        .tabs {
+            display: flex;
+            background-color: var(--wpi-gray);
+            border-radius: 0 0 5px 5px;
+            overflow: hidden;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: var(--wpi-gray);
+            color: var(--wpi-black);
+            border: none;
+            outline: none;
+            transition: 0.3s;
+        }
+        
+        .tab:hover {
+            background-color: #ddd;
+        }
+        
+        .tab.active {
+            background-color: var(--wpi-crimson);
+            color: var(--wpi-white);
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid var(--wpi-gray);
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .stat-box {
+            flex: 1;
+            background-color: var(--wpi-gray);
+            color: var(--wpi-black);
+            padding: 15px;
+            margin: 0 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .stat-box h4 {
+            margin: 0;
+            font-size: 18px;
+        }
+        
+        .chart-container {
+            height: 500px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .county {
+            stroke: #bbb;
+            stroke-width: 0.3px;
+        }
+        
+        .state {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--wpi-black);
+            padding: 15px;
+            pointer-events: none;
+            font-family: sans-serif;
+            color: var(--wpi-black);
+            border-radius: 5px;
+        }
+        
+        .legend-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WPI Mailroom Dashboard</h1>
+        </div>
+        
+        <div class="stats-row">
+            <div class="stat-box">
+                <h4>Total Packages: <span id="total-packages">-</span></h4>
+            </div>
+            <div class="stat-box">
+                <h4>Top Carrier: <span id="top-carrier">-</span></h4>
+            </div>
+            <div class="stat-box">
+                <h4>Avg. Processing Time: <span id="avg-processing-time">-</span> Hours</h4>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="openTab(event, 'package-flow')">📦 Package Flow</button>
+            <button class="tab" onclick="openTab(event, 'county-map')">🗺️ County Map</button>
+        </div>
+        
+        <div id="package-flow" class="tab-content active">
+            <div class="chart-container" id="sankey-diagram"></div>
+        </div>
+        
+        <div id="county-map" class="tab-content">
+            <svg id="map" width="960" height="600">
+                <g id="gMap"></g>
+            </svg>
+            <div class="legend-container">
+                <svg id="legend" width="500" height="60"></svg>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Tab functionality
+        function openTab(evt, tabName) {
+            const tabcontent = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            
+            const tablinks = document.getElementsByClassName("tab");
+            for (let i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+        
+        // Load and parse CSV data
+        async function loadCSVData() {
+            try {
+                const response = await fetch('Cleaned_Package_Data_County_FIPS.csv');
+                const csvText = await response.text();
+                
+                return new Promise((resolve) => {
+                    Papa.parse(csvText, {
+                        header: true,
+                        dynamicTyping: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            resolve(results.data);
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading CSV:', error);
+                return [];
+            }
+        }
+        
+        // Process data and update dashboard
+        async function initDashboard() {
+            const data = await loadCSVData();
+            
+            if (data.length > 0) {
+                // Update stats
+                document.getElementById('total-packages').textContent = data.length;
+                
+                // Find top carrier
+                const carrierCounts = {};
+                data.forEach(row => {
+                    if (row.Carrier) {
+                        carrierCounts[row.Carrier] = (carrierCounts[row.Carrier] || 0) + 1;
+                    }
+                });
+                
+                let topCarrier = '';
+                let maxCount = 0;
+                Object.entries(carrierCounts).forEach(([carrier, count]) => {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        topCarrier = carrier;
+                    }
+                });
+                
+                document.getElementById('top-carrier').textContent = topCarrier;
+                
+                // Calculate average processing time
+                let totalProcessingTime = 0;
+                let validTimeCount = 0;
+                
+                data.forEach(row => {
+                    if (row['Processing Time (Hours)'] && !isNaN(row['Processing Time (Hours)'])) {
+                        totalProcessingTime += row['Processing Time (Hours)'];
+                        validTimeCount++;
+                    }
+                });
+                
+                const avgProcessingTime = validTimeCount > 0 ? totalProcessingTime / validTimeCount : 0;
+                document.getElementById('avg-processing-time').textContent = avgProcessingTime.toFixed(2);
+                
+                // Create Sankey diagram
+                createSankeyDiagram(data);
+                
+                // Initialize county map
+                initCountyMap(data);
+            }
+        }
+        
+        // Create Sankey diagram
+        function createSankeyDiagram(data) {
+            // Calculate average times for sankey diagram
+            let routedToStored = 0;
+            let storedToDelivered = 0;
+            let validTimeCount = 0;
+            
+            data.forEach(row => {
+                const routedDate = new Date(row['Routed Date Time']);
+                const storedDate = new Date(row['Stored Date Time']);
+                const deliveredDate = new Date(row['Delivered Date Time']);
+                
+                if (!isNaN(routedDate) && !isNaN(storedDate) && !isNaN(deliveredDate)) {
+                    const r2s = (storedDate - routedDate) / (1000 * 60 * 60);
+                    const s2d = (deliveredDate - storedDate) / (1000 * 60 * 60);
+                    
+                    if (r2s >= 0 && s2d >= 0) {
+                        routedToStored += r2s;
+                        storedToDelivered += s2d;
+                        validTimeCount++;
+                    }
+                }
+            });
+            
+            const avgRoutedToStored = validTimeCount > 0 ? routedToStored / validTimeCount : 0;
+            const avgStoredToDelivered = validTimeCount > 0 ? storedToDelivered / validTimeCount : 0;
+            
+            // Mock values for demonstration purposes (can be adjusted based on actual data)
+            const sankeyData = {
+                node: {
+                    label: ["📦 Arrived", "📍 Sorting", "📦 Storage", "🚀 Out for Delivery", "🏡 Delivered"],
+                    color: [
+                        '#AC2B37', '#A9B0B7', '#AC2B37', '#A9B0B7', '#AC2B37'
+                    ],
+                    pad: 15,
+                    thickness: 40,
+                    line: {
+                        color: "#000000",
+                        width: 1
+                    }
+                },
+                link: {
+                    source: [0, 1, 1, 2, 2],
+                    target: [1, 2, 3, 3, 4],
+                    value: [
+                        avgRoutedToStored || 5, 
+                        avgStoredToDelivered || 4, 
+                        4000, 
+                        3200, 
+                        1200
+                    ],
+                    color: ['rgba(172, 43, 55, 0.5)', 'rgba(169, 176, 183, 0.5)', 'rgba(172, 43, 55, 0.5)', 'rgba(169, 176, 183, 0.5)', 'rgba(172, 43, 55, 0.5)']
+                }
+            };
+            
+            const layout = {
+                title: '📊 Package Flow',
+                font: {
+                    size: 12
+                },
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                margin: {
+                    l: 0,
+                    r: 0,
+                    b: 0,
+                    t: 50
+                }
+            };
+            
+            const config = {
+                responsive: true
+            };
+            
+            Plotly.newPlot('sankey-diagram', [{
+                type: "sankey",
+                arrangement: "snap",
+                node: sankeyData.node,
+                link: sankeyData.link
+            }], layout, config);
+        }
+        
+        // Initialize County Map
+        function initCountyMap(data) {
+            const width = 960, height = 600;
+            const svg = d3.select("#map");
+            const gMap = svg.select("#gMap");
+            
+            // Create zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([1, 100])
+                .on("zoom", (event) => {
+                    gMap.attr("transform", event.transform);
+                    
+                    const currentScale = event.transform.k;
+                    const countyStrokeWidth = Math.max(0.3 / currentScale, 0.05);
+                    const stateStrokeWidth = Math.max(2 / currentScale, 0.2);
+                    
+                    d3.selectAll(".county").style("stroke-width", countyStrokeWidth + "px");
+                    d3.selectAll(".state").style("stroke-width", stateStrokeWidth + "px");
+                });
+            
+            svg.call(zoom);
+            
+            // Create tooltip div
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+            
+            // Load county map data
+            d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json")
+                .then(us => {
+                    const counties = topojson.feature(us, us.objects.counties);
+                    const states = topojson.mesh(us, us.objects.states);
+                    
+                    // Process data for county map
+                    const filteredData = data.filter(d => d["County FIPS"] && d["County FIPS"].toString().trim() !== "");
+                    let countyCounts = d3.rollup(filteredData, v => v.length, d => d["County FIPS"].toString());
+                    const maxCount = d3.max([...countyCounts.values()]);
+                    
+                    const countyInfo = new Map();
+                    filteredData.forEach(d => {
+                        countyInfo.set(d["County FIPS"].toString(), {
+                            county: d["Origin County"],
+                            state: d["Origin State"]
+                        });
+                    });
+                    
+                    const colorScale = d3.scaleLog()
+                        .domain([1, maxCount])
+                        .range(["#FFE6E6", "#AC2B37"]) // Use WPI crimson for highest values
+                        .clamp(true);
+                    
+                    const getColor = (count) => count > 0 ? colorScale(count) : "#fcfcfc";
+                    const path = d3.geoPath();
+                    
+                    gMap.append("g")
+                        .selectAll("path")
+                        .data(counties.features)
+                        .enter().append("path")
+                        .attr("class", "county")
+                        .attr("d", path)
+                        .attr("fill", d => getColor(countyCounts.get(d.id) || 0))
+                        .on("mouseover", function(event, d) {
+                            const currentScale = d3.zoomTransform(svg.node()).k;
+                            const hoverStrokeWidth = Math.max(1 / currentScale, 0.2);
+                            
+                            const countyFIPS = d.id;
+                            const count = countyCounts.get(countyFIPS) || 0;
+                            const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
+                            
+                            if (count === 0) return;
+                            
+                            tooltip.transition().duration(200).style("opacity", 1);
+                            tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}`)
+                                .style("left", (event.pageX + 10) + "px")
+                                .style("top", (event.pageY - 28) + "px");
+                            
+                            d3.select(this)
+                                .style("stroke", "black")
+                                .style("stroke-width", hoverStrokeWidth + "px")
+                                .raise();
+                        })
+                        .on("mouseout", function() {
+                            const currentScale = d3.zoomTransform(svg.node()).k;
+                            const normalStrokeWidth = Math.max(0.3 / currentScale, 0.05);
+                            
+                            tooltip.transition().duration(500).style("opacity", 0);
+                            
+                            d3.select(this)
+                                .style("stroke", "#bbb")
+                                .style("stroke-width", normalStrokeWidth + "px");
+                        });
+                    
+                    gMap.append("path")
+                        .datum(states)
+                        .attr("class", "state")
+                        .attr("d", path)
+                        .attr("fill", "none");
+                    
+                    // Create legend
+                    const legendSvg = d3.select("#legend");
+                    const legendWidth = 300, legendHeight = 20;
+                    
+                    const logScale = d3.scaleLog()
+                        .domain([1, maxCount])
+                        .range([0, legendWidth]);
+                    
+                    const defs = legendSvg.append("defs");
+                    const gradient = defs.append("linearGradient")
+                        .attr("id", "legend-gradient")
+                        .attr("x1", "0%").attr("x2", "100%")
+                        .attr("y1", "0%").attr("y2", "0%");
+                    
+                    const numStops = 10;
+                    for (let i = 0; i <= numStops; i++) {
+                        const t = i / numStops;
+                        const logValue = Math.pow(maxCount, t);
+                        gradient.append("stop")
+                            .attr("offset", `${t * 100}%`)
+                            .attr("stop-color", colorScale(logValue));
+                    }
+                    
+                    const legend = legendSvg.append("g")
+                        .attr("transform", `translate(${(500 - legendWidth) / 2}, 20)`);
+                    
+                    legend.append("rect")
+                        .attr("width", legendWidth)
+                        .attr("height", legendHeight)
+                        .style("fill", "url(#legend-gradient)")
+                        .style("stroke", "#ccc")
+                        .style("stroke-width", "1px");
+                    
+                    legendSvg.append("text")
+                        .attr("x", 500 / 2)
+                        .attr("y", 15)
+                        .style("text-anchor", "middle")
+                        .style("font-weight", "bold")
+                        .text("Packages from County (Log Scale)");
+                    
+                    const tickValues = [];
+                    let baseTick = 1;
+                    while (baseTick <= maxCount) {
+                        tickValues.push(baseTick);
+                        baseTick *= 10;
+                    }
+                    
+                    if (maxCount < 10) tickValues.splice(1, 0, 2, 5);
+                    
+                    tickValues.forEach(value => {
+                        if (value <= maxCount && value > 1) {
+                            const xPos = logScale(value);
+                            legend.append("line")
+                                .attr("x1", xPos).attr("x2", xPos)
+                                .attr("y1", legendHeight).attr("y2", legendHeight + 5)
+                                .style("stroke", "#000").style("stroke-width", "1px");
+                            
+                            legend.append("text")
+                                .attr("x", xPos)
+                                .attr("y", legendHeight + 15)
+                                .style("text-anchor", "middle")
+                                .text(value);
+                        }
+                    });
+                    
+                    // Add min and max labels
+                    legend.append("text")
+                        .attr("x", 0)
+                        .attr("y", legendHeight + 15)
+                        .style("text-anchor", "middle")
+                        .text("1");
+                    
+                    legend.append("line")
+                        .attr("x1", 0)
+                        .attr("x2", 0)
+                        .attr("y1", legendHeight)
+                        .attr("y2", legendHeight + 5)
+                        .style("stroke", "#000")
+                        .style("stroke-width", "1px");
+                    
+                    legend.append("text")
+                        .attr("x", legendWidth)
+                        .attr("y", legendHeight + 15)
+                        .style("text-anchor", "middle")
+                        .text(maxCount);
+                    
+                    legend.append("line")
+                        .attr("x1", legendWidth)
+                        .attr("x2", legendWidth)
+                        .attr("y1", legendHeight)
+                        .attr("y2", legendHeight + 5)
+                        .style("stroke", "#000")
+                        .style("stroke-width", "1px");
+                });
+        }
+        
+        // Initialize dashboard
+        window.onload = function() {
+            initDashboard();
+        };
+    </script>
+</body>
+</html>
