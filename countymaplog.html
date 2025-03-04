@@ -92,10 +92,10 @@
 
                 const colorScale = d3.scaleLog()
                     .domain([1, maxCount])
-                    .range(["#ffffff", "#ff0000"])
+                    .range(["#ffe6e6", "#ff0000"]) // Make sure color for 1 is noticeably pink to destinguish from counties with 0
                     .clamp(true);
                 
-                const getColor = (count) => count > 0 ? colorScale(count) : "#ffffff";
+                const getColor = (count) => count > 0 ? colorScale(count) : "#fcfcfc"; // Just barely gray for 0
                 const path = d3.geoPath();
 
                 gMap.append("g")
