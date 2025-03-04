@@ -56,17 +56,7 @@
             color: rgb(0, 0, 0);
             border-radius: 3px;
         }
-        .reset-button {
-            margin-top: 10px;
-            padding: 5px 10px;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .reset-button:hover {
-            background-color: #e0e0e0;
-        }
+
         .title {
             font-size: 24px;
             font-weight: bold;
@@ -89,8 +79,7 @@
             <svg id="barChart" width="800" height="200"></svg>
         </div>
         
-        <!-- Reset filter button -->
-        <button class="reset-button" id="resetFilter" style="display: none;">Reset Filter</button>
+
         
         <!-- Map container -->
         <svg id="map" width="960" height="600">
@@ -149,7 +138,6 @@
 
         // Current filter state
         let currentFilter = null;
-        const resetFilterButton = d3.select("#resetFilter");
 
         // Load county map data
         d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(us => {
@@ -441,7 +429,6 @@
                         // If clicking the same carrier again, reset filter
                         currentFilter = null;
                         filteredMapData = fullData;
-                        resetFilterButton.style("display", "none");
                     } else {
                         // Set new filter
                         currentFilter = carrier;
@@ -450,7 +437,6 @@
                                 ? !d["Carrier"] || d["Carrier"] === "Unknown" || !carrierColors[d["Carrier"]]
                                 : d["Carrier"] === carrier
                         );
-                        resetFilterButton.style("display", "block");
                     }
                     
                     // Update map with filtered data
@@ -492,24 +478,7 @@
                     createMapLegend(newMaxCount, newColorScale);
                 }
                 
-                // Reset filter button
-                resetFilterButton.on("click", function() {
-                    currentFilter = null;
-                    filteredMapData = fullData;
-                    updateMap();
-                    
-                    // Reset bar chart highlighting
-                    d3.selectAll(".bar")
-                        .attr("opacity", 1)
-                        .attr("stroke-width", "1px");
-                    
-                    // Hide reset button
-                    resetFilterButton.style("display", "none");
-                    
-                    // Update subtitle
-                    d3.select(".subtitle")
-                        .text("Click on a carrier to filter the map");
-                });
+
             });
         });
     </script>
