@@ -27,16 +27,13 @@
         }
         .tooltip {
             position: absolute;
-            background-color: rgba(255, 255, 255, 0.95);
+            background-color: rgba(255, 255, 255, 0.9);
             border: 1px solid rgb(0, 0, 0);
             padding: 15px;
             pointer-events: none;
             font-family: sans-serif;
             color: rgb(0, 0, 0);
             border-radius: 5px;
-            max-width: 250px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            z-index: 1000;
         }
         .legend-container {
             margin-top: 20px;
@@ -156,25 +153,7 @@
                 // Process data for map
                 const processMapData = (data) => {
                     let countyCounts = d3.rollup(data, v => v.length, d => d["County FIPS"]);
-                    
-                    // Also gather carrier breakdowns by county
-                    let countyCarrierBreakdown = new Map();
-                    data.forEach(d => {
-                        const fips = d["County FIPS"];
-                        const carrier = d["Carrier"] || "Unknown";
-                        
-                        if (!countyCarrierBreakdown.has(fips)) {
-                            countyCarrierBreakdown.set(fips, new Map());
-                        }
-                        
-                        const countyMap = countyCarrierBreakdown.get(fips);
-                        countyMap.set(carrier, (countyMap.get(carrier) || 0) + 1);
-                    });
-                    
-                    return {
-                        countyCounts,
-                        countyCarrierBreakdown
-                    };
+                    return countyCounts;
                 };
 
                 // Process data for carrier chart
@@ -207,9 +186,7 @@
                 });
 
                 // Initialize map with all data
-                let mapData = processMapData(filteredMapData);
-                let countyCounts = mapData.countyCounts;
-                let countyCarrierBreakdown = mapData.countyCarrierBreakdown;
+                let countyCounts = processMapData(filteredMapData);
                 const maxCount = d3.max([...countyCounts.values()]);
 
                 // Create color scale for map
@@ -236,34 +213,11 @@
                         const countyFIPS = d.id;
                         const count = countyCounts.get(countyFIPS) || 0;
                         const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
-                        const breakdownMap = countyCarrierBreakdown.get(countyFIPS);
 
                         if (count === 0) return;
 
-                        // Build tooltip with carrier breakdown
-                        let tooltipContent = `<strong>${info.county} County, ${info.state}</strong><br>Total Packages: ${count}<br><br>`;
-                        
-                        if (breakdownMap) {
-                            tooltipContent += "<strong>Carrier Breakdown:</strong><br>";
-                            
-                            // Convert to array for sorting
-                            let breakdownArray = Array.from(breakdownMap, ([carrier, count]) => ({ carrier, count }));
-                            breakdownArray.sort((a, b) => b.count - a.count);
-                            
-                            breakdownArray.forEach(item => {
-                                const displayCarrier = item.carrier === "Unknown" ? "Other" : item.carrier;
-                                const color = carrierColors[displayCarrier] || defaultCarrierColor;
-                                const percentage = ((item.count / count) * 100).toFixed(1);
-                                
-                                tooltipContent += `<div style="display: flex; align-items: center; margin: 2px 0;">
-                                    <div style="width: 12px; height: 12px; background-color: ${color}; margin-right: 5px;"></div>
-                                    <div>${displayCarrier}: ${item.count} (${percentage}%)</div>
-                                </div>`;
-                            });
-                        }
-
                         tooltip.transition().duration(200).style("opacity", 1);
-                        tooltip.html(tooltipContent)
+                        tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}`)
                             .style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 28) + "px");
 
@@ -503,10 +457,7 @@
                 // Function to update map with filtered data
                 function updateMap() {
                     // Recalculate county counts
-                    const mapData = processMapData(filteredMapData);
-                    countyCounts = mapData.countyCounts;
-                    countyCarrierBreakdown = mapData.countyCarrierBreakdown;
-                    
+                    countyCounts = processMapData(filteredMapData);
                     const newMaxCount = d3.max([...countyCounts.values()]) || maxCount;
                     
                     // Update color scale with new max count
