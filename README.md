@@ -1,127 +1,18 @@
 Final Project - Interactive Data Visualization  
 ===
 
-* Edit 04-Feb-2025 -> adding link to a Notion doc of ideas (totally optional, mainly ideas collected from recent convos w/ people) -> https://scented-flock-323.notion.site/Project-Ideas-18fcf1e51ce380f79f92d4faf3ae7b4a?pvs=4
+**Our Process Book:** https://docs.google.com/document/d/18grehGqWMgrc9NdPCNpJVS-ceePdD1HHudDVrbT-1Mc/edit?tab=t.0#heading=h.h0wey3iuet52
 
-The key learning experience of this course is the final project. 
-You will design a web site and interactive visualizations that answer questions you have, provide an exploratory interface to some topic of your own choosing, or take on a more ambitious experiment than A3. 
-You will acquire the data, design your visualizations, implement them, and critically evaluate the results. 
+## Overview and Motivation
+The goal of this project is to visualize WPI post office package data over a 30-day period to gain insights into package processing efficiency, storage patterns, and potential bottlenecks. By analyzing timestamps from package routing to storage and final delivery, we can track how long packages remain in different stages and identify areas where delays may occur. The dataset, sourced directly from the WPI mailroom, excludes recipient names for privacy protection while retaining key details such as locker assignments, carriers, and processing times. Understanding these trends will help improve package handling efficiency, optimize locker usage, and provide a clearer picture of how the campus mail system operates. Using visualizations, particularly a Sankey diagram, we can illustrate the flow of packages through the system, highlighting areas where processing times could be improved to enhance the overall experience for WPI students and staff.
 
-The path to a good visualization is going to involve mistakes and wrong turns. 
-It is therefore important to recognize that mistakes are valuable in finding the path to a solution, to broadly explore the design space, and to iterate designs to improve possible solutions. 
-To help you explore the design space, we will hold events such as feedback sessions in which you propose your idea and initial designs and receive feedback from the class and staff.
+## Database Cleaning and Processing
+The original dataset from the WPI post office contained package tracking information spanning 30 days, capturing key details such as tracking numbers, locker assignments, carrier names, and timestamps for different stages of processing. However, the raw data also included inconsistencies, missing values, and unstructured fields that required preprocessing before analysis. Some columns, such as "Notes", were unnecessary, while others, like "Routed Date Time" and "Stored Date Time", had missing entries that needed to be addressed. The "Tracking #" field contained trailing underscores, and the "Location 1" column mixed undergrad and grad student package assignments without a clear distinction. Additionally, the "Origin City" and "Origin State" fields were incomplete in some cases, affecting the accuracy of geographic analysis. To prepare the dataset for visualization, we performed several cleaning and processing steps to ensure consistency and reliability. Missing values in critical columns were filled, tracking numbers were standardized, and a "Bank_Locker" identifier was created by combining locker bank and locker number to facilitate storage analysis. The timestamps for when packages were routed, stored, and delivered were converted into datetime format, allowing us to compute processing durations accurately. To enhance geographic tracking, the dataset was merged with an external city-to-county mapping file, filling in missing "Origin County" values where possible. There were many entries with proper city-state information that weren't given a county column entry after this process. To fix this, a new python script was created that would load in the CSV and use the “geopy” library to retrieve the county for a city-state tuple. These counties were saved to an output CSV as well as a temporarily stored dictionary. This dictionary sped up the process, bypassing the need to call to “geopy” if the county was already found. With numerous packages coming from the same cities in Massachusetts this optimization worked wonderfully. After these refinements, the cleaned dataset provided a structured and reliable foundation for analyzing package flow, processing times, and overall post office efficiency.
 
-Proposals / Idea Generation
----
-
-Submit project ideas using [this Google Form](https://docs.google.com/forms/d/e/1FAIpQLSc72vId8keotkEvLrB9Ef3Nt0e1uh_-mWmQ5okyPM5_q2a89Q/viewform?usp=sf_link).
-
-You're encouraged to submit many ideas-- staff will help you identify the most promising ones and possible roadblocks.
-
-Please stick to 1-4 folks per team.
-
-Final Project Materials
----
-For your final project you must hand in the following items.
-
-### Process Book
-
-An important part of your project is your process book. Your process book details your steps in developing your solution, including the alternative designs you tried, and the insights you got. Develop your process book out of the project proposal. Equally important to your final results is how you got there! Your process book is the place you describe and document the space of possibilities you explored at each step of your project. It is not, however, a journal or lab notebook that describes every detail - you should think carefully about the important decisions you made and insights you gained and present your reasoning in a concise way.
-
-We strongly advise you to include many figures in your process book, including photos of your sketches of potential designs, screen shots from different visualization tools you explored, inspirations of visualizations you found online, etc. Several images illustrating changes in your design or focus over time will be far more informative than text describing those changes. Instead, use text to describe the rationale behind the evolution of your project.
-
-Your process book should include the following topics. Depending on your project type the amount of discussion you devote to each of them will vary:
-
-- Overview and Motivation: Provide an overview of the project goals and the motivation for it. Consider that this will be read by people who did not see your project proposal.
-- Related Work: Anything that inspired you, such as a paper, a web site, visualizations we discussed in class, etc.
-- Questions: What questions are you trying to answer? How did these questions evolve over the course of the project? What new questions did you consider in the course of your analysis?
-- Data: Source, scraping method, cleanup, etc.
-- Exploratory Data Analysis: What visualizations did you use to initially look at your data? What insights did you gain? How did these insights inform your design?
-- Design Evolution: What are the different visualizations you considered? Justify the design decisions you made using the perceptual and design principles you learned in the course. Did you deviate from your proposal?
-- Implementation: Describe the intent and functionality of the interactive visualizations you implemented. Provide clear and well-referenced images showing the key design and interaction elements.
-- Evaluation: What did you learn about the data by using your visualizations? How did you answer your questions? How well does your visualization work, and how could you further improve it?
-
-As this will be your only chance to describe your project in detail make sure that your process book is a standalone document that fully describes your results and the final design. 
-[Here](http://dataviscourse.net/2015/assets/process_books/bansal_cao_hou.pdf) are a [few examples](http://dataviscourse.net/2015/assets/process_books/walsh_trevino_bett.pdf) of process books from a similar course final.
-
-Tip: Start your process book on Day 1. Make entries after each meeting, and trim / edit as needed towards the end of the project. Many folks use either slides software (like PowerPoint) or Google Docs to make this book, as both allow for flexible layouts and export to PDF.
+## Related Work
+To visualize the package flow and processing times, we used a Sankey diagram, referencing the figure we posted above, to represent how long each package stays in different locations before being processed. Our cleaned dataset includes key timestamps: "Routed Date Time", "Stored Date Time", and "Delivered Date Time", which allow us to track the time spent at each stage of the process. The flow will start from the package’s arrival at the facility (Routed Date Time), moving to locker storage (Stored Date Time), and finally to delivery or pickup (Delivered Date Time). Each node in the Sankey diagram will represent a processing stage, including possible paths such as locker assignment, carrier pickup, and customer retrieval. The width of the connections will indicate the volume of packages transitioning between these stages, and the time spent at each stage can be color-coded to highlight delays or inefficiencies. Additionally, we can incorporate locker bank utilization by breaking down processing times per "Bank_Locker", identifying which locker areas experience the most congestion. If "Carrier" information is available, we can analyze differences in processing times for different shipping companies, helping to optimize workflows and improve package management within the post office system. This visualization will provide actionable insights into bottlenecks and operational efficiency.
 
 
-### Project Website
+## Exploratory Data Analysis
+- We found that the majority of packages were from Amazon, followed by USPS and FedEx. The average processing time for packages was 1,242 hours. 
 
-Create a public website for your project using GitHub pages or another web hosting service of your choice. 
-The web site should contain your interactive visualization, summarize the main results of the project, and tell a story. 
-Consider your audience (the site should be public if possible, unless you're running an experiment, etc.) and keep the level of discussion at the appropriate level. 
-Your process book and data should be linked from the web site as well. 
-Also embed your interactive visualization and your screen-cast in your website. 
-If you are not able to publish your work (e.g., due to confidential data) please let us know in your project proposal.
-
-### Project Screen-Cast
-
-Each team will create a two minute screen-cast with narration showing a demo of your visualization and/or some slides. 
-
-You can use any screencast tool of your choice, such as Camtasia or Loom (new and recommended). 
-Please make sure that the sound quality of your video is good -- it may be worthwhile to invest in an external USB microphone-- campus IT should have some you can borrow. 
-Upload the video to an online video-platform such as YouTube or Vimeo and embed it into your project web page. 
-For our final project presentation day, we will show as many videos in class as possible, and ask teams to field questions.
-
-We will strictly enforce the two minute time limit for the video, so please make sure you are not running longer. 
-Use principles of good storytelling and presentations to get your key points across. Focus the majority of your screencast on your main contributions rather than on technical details. 
-What do you feel is the best part of your project? 
-What insights did you gain? 
-What is the single most important thing you would like your audience to take away? Make sure it is front and center rather than at the end.
-
-Outside Libraries/References
----
-
-For this project you *do not* have to write everything from scratch.
-
-You may *reference* demo programs from books or the web, and *include* popular web libraries like Material UI, React, Svelte, etcetera. 
-
-Please *do not* use libraries on top of d3 without consulting staff, however. 
-Libraries like nvd3.js look tempting, but such libraries often have poor defaults and result in poor visualizations.
-There may be exceptions.
-Instead, draw from the numerous existing d3 examples on the web.
-
-If you use outside sources please provide a References section with links at the end of your Readme.
-
-Resources
----
-The "[Data is Plural](https://tinyletter.com/data-is-plural/archive)" weekly letter often contains interesting datasets.
-
-KAGGLE IS BANNED! You may propose to use a dataset from there if you really have a deep/cool idea, but please run it by me first.
-
-Think of something you're interested in, go find data on it! Include data collection and processing as part of your work on this project.
-
-Requirements
----
-
-Store the following in your GitHub repository:
-
-- Code - All web site files and libraries assuming they are not too big to include
-- Data - Include all the data that you used in your project. If the data is too large for github store it on a cloud storage provider, such as Dropbox or Yousendit.
-- Process Book- Your Process Book in PDF format.
-- README - The README file must give an overview of what you are handing in: which parts are your code, which parts are libraries, and so on. The README must contain URLs to your project websites and screencast videos. The README must also explain any non-obvious features of your interface.
-
-GitHub Details
----
-
-- Fork the repo. You now have a copy associated with your username.
-- Make changes to index.html to fulfill the project requirements. 
-- Make sure your "main" branch matches your "gh-pages" branch. See the GitHub Guides referenced above if you need help.
-- Edit the README.md with a link to your gh-pages or other external site: for example http://YourUsernameGoesHere.github.io/DataVisFinal/index.html
-- To submit, make a [Pull Request](https://help.github.com/articles/using-pull-requests/) on the original repository.
-
-Grading
----
-
-- Process Book - Are you following a design process that is well documented in your process book?
-- Solution - Is your visualization effective in answering your intended questions? Was it designed following visualization principles?
-- Implementation - What is the quality of your implementation? Is it appropriately polished, robust, and reliable?
-- Presentation - Are your web site and screencast clear, engaging, and effective?
-Your individual project score will also be influenced by your peer evaluations.
-
-References
----
-
-- This final project is adapted from https://www.dataviscourse.net/2020/project/

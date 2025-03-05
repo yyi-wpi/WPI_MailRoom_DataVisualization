@@ -6,26 +6,28 @@ import plotly.express as px
 import webbrowser
 from threading import Timer
 import dash_bootstrap_components as dbc
+import os
+from http.server import SimpleHTTPRequestHandler
+from socketserver import TCPServer
 
-# Load Data
-file_path = "Cleaned_Package_Data_County.csv"
+# Load data
+file_path = "Cleaned_Package_Data_County.csv"  # Ensure this file is present in the working directory
 df = pd.read_csv(file_path)
 
-# Convert DateTime columns with explicit format
 date_columns = ["Routed Date Time", "Stored Date Time", "Delivered Date Time"]
 for col in date_columns:
     df[col] = pd.to_datetime(df[col], format="%m/%d/%Y %H:%M", errors='coerce')
 
-# Drop rows with missing critical timestamps
 df.dropna(subset=["Routed Date Time", "Delivered Date Time"], inplace=True)
 
-# Compute Processing Stages
 df['Routed → Stored'] = (df['Stored Date Time'] - df['Routed Date Time']).dt.total_seconds() / 3600
 df['Stored → Delivered'] = (df['Delivered Date Time'] - df['Stored Date Time']).dt.total_seconds() / 3600
 df['Total Processing Time'] = (df['Delivered Date Time'] - df['Routed Date Time']).dt.total_seconds() / 3600
-
-# Ensure all values are properly handled
 df.fillna(0, inplace=True)
+
+# Read README.md content
+with open("README.md", "r", encoding="utf-8") as file:
+    readme_content = file.read()
 
 # Initialize Dash App with a Modern Theme
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
@@ -58,7 +60,15 @@ app.layout = dbc.Container([
                 className="mt-3 shadow-lg"
             )
         ]),
-
+        dbc.Tab(label='🌍 County Map', id='county-map-tab', children=[
+            dbc.Card(
+                dbc.CardBody([
+                    html.H3("🌍 County Map", className='card-title', style={'textAlign': 'center'}),
+                    html.Button("Open County Map", id="open-county-map", n_clicks=0)
+                ]),
+                className="mt-3 shadow-lg"
+            )
+        ]),
         dbc.Tab(label='📈 Statistical Insights', children=[
             dbc.Row([
                 dbc.Col([
@@ -81,7 +91,6 @@ app.layout = dbc.Container([
                 ], width=6)
             ])
         ]),
-
         dbc.Tab(label='📊 Additional Insights', children=[
             dbc.Row([
                 dbc.Col([
@@ -104,12 +113,20 @@ app.layout = dbc.Container([
                 ], width=6)
             ])
         ]),
-
         dbc.Tab(label='🔥 Heatmap & Trends', children=[
             dbc.Card(
                 dbc.CardBody([
                     html.H3("⏰ Package Pickup Heatmap", className='card-title', style={'textAlign': 'center'}),
                     dcc.Graph(id='heatmap')
+                ]),
+                className="mt-3 shadow-lg"
+            )
+        ]),
+        dbc.Tab(label='📄 README.md', children=[
+            dbc.Card(
+                dbc.CardBody([
+                    html.H3("📄 Project Documentation", className='card-title', style={'textAlign': 'center'}),
+                    dcc.Markdown(readme_content)
                 ]),
                 className="mt-3 shadow-lg"
             )
@@ -164,10 +181,24 @@ def update_heatmap(_):
     fig = px.density_heatmap(heatmap_data, x='Hour of Day', y='Day of Week', z='Count', title="🔥 Pickup Trends")
     return fig
 
+@app.callback(Output('open-county-map', 'n_clicks'), Input('open-county-map', 'n_clicks'))
+def open_county_map(n_clicks):
+    if n_clicks > 0:
+        webbrowser.open_new_tab('http://localhost:8000/countymaplog.html')
+    return n_clicks
+
 # Auto-open browser
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:8050/")
 
+# Start local server for countymaplog.html
+def start_local_server():
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    handler = SimpleHTTPRequestHandler
+    httpd = TCPServer(("", 8000), handler)
+    httpd.serve_forever()
+
 if __name__ == '__main__':
     Timer(1, open_browser).start()
+    Timer(1, start_local_server).start()
     app.run_server(debug=True)
