@@ -4,7 +4,7 @@ from dash import dcc, html, Input, Output
 import plotly.graph_objects as go
 import plotly.express as px
 import webbrowser
-from threading import Timer
+from threading import Timer, Thread
 import dash_bootstrap_components as dbc
 import os
 from http.server import SimpleHTTPRequestHandler
@@ -195,13 +195,27 @@ def open_browser():
     webbrowser.open_new("http://127.0.0.1:8050/")
 
 # Start local server for countymaplog.html
+class StoppableTCPServer(TCPServer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._is_shut_down = False
+
+    def serve_forever(self, poll_interval=0.5):
+        while not self._is_shut_down:
+            self.handle_request()
+
+    def shutdown(self):
+        self._is_shut_down = True
+        self.server_close()
+
 def start_local_server():
+    global httpd
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     handler = SimpleHTTPRequestHandler
     port = 8000
     while True:
         try:
-            httpd = TCPServer(("", port), handler)
+            httpd = StoppableTCPServer(("", port), handler)
             break
         except OSError:
             port += 1
@@ -209,5 +223,10 @@ def start_local_server():
 
 if __name__ == '__main__':
     Timer(1, open_browser).start()
-    Timer(1, start_local_server).start()
-    app.run_server(debug=True)
+    server_thread = Thread(target=start_local_server)
+    server_thread.start()
+    try:
+        app.run_server(debug=True)
+    finally:
+        httpd.shutdown()
+        server_thread.join()
