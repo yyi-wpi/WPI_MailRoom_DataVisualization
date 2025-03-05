@@ -122,6 +122,21 @@
             height: 800px;
             overflow: auto;
         }
+
+        .embed-responsive-16by9 iframe {
+            width: 100%;
+            height: 600px;
+        }
+
+        #discussion-content {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        #discussion-content p,
+        #discussion-content ul {
+            text-align: left;
+        }
     </style>
 </head>
 
@@ -174,8 +189,8 @@
                     Trends</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="readme-tab" data-bs-toggle="tab" data-bs-target="#readme" type="button"
-                    role="tab" aria-controls="readme" aria-selected="false">📄 README.md</button>
+                <button class="nav-link" id="discussion-tab" data-bs-toggle="tab" data-bs-target="#discussion"
+                    type="button" role="tab" aria-controls="discussion" aria-selected="false">📄 Discussion</button>
             </li>
         </ul>
 
@@ -274,12 +289,32 @@
                 </div>
             </div>
 
-            <!-- README Tab -->
-            <div class="tab-pane fade" id="readme" role="tabpanel" aria-labelledby="readme-tab">
+            <!-- Discussion Tab -->
+            <div class="tab-pane fade" id="discussion" role="tabpanel" aria-labelledby="discussion-tab">
                 <div class="card mt-3 shadow-lg">
                     <div class="card-body">
                         <h3 class="card-title text-center">📄 Project Documentation</h3>
-                        <div id="readme-content"></div>
+                        <div id="discussion-content" class="text-left"> <!-- Text left-justified -->
+                            <p>
+                                MAIN PROJECT RESULTS SUMMARY PLACEHOLDER
+                            </p>
+                            <p>
+                                Resources and links:
+                            </p>
+                            <ul>
+                                <li><a href="https://github.com/woosterum/final" target="_blank">Github Repository</a>
+                                </li>
+                                <li><a href="ProcessBook.pdf" target="_blank">Process Book</a></li>
+                                <li><a href="Cleaned_Package_Data_County_FIPS.csv" target="_blank">Data Source</a></li>
+                            </ul>
+                            <p>
+                                Screen-cast video overview of our website:
+                            </p>
+                            <div class="embed-responsive embed-responsive-16by9">
+                                <iframe class="embed-responsive-item" src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                                    allowfullscreen></iframe>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -336,16 +371,6 @@
                             createHeatmap();
                         }
                     });
-                });
-
-            // Load README.md for the README tab
-            fetch('README.md')
-                .then(response => response.text())
-                .then(data => {
-                    document.getElementById('readme-content').innerHTML = convertMarkdownToHTML(data);
-                })
-                .catch(error => {
-                    document.getElementById('readme-content').innerHTML = "<p>README.md not found or could not be loaded.</p>";
                 });
         }
 
@@ -686,31 +711,6 @@
             };
 
             Plotly.newPlot('heatmap', data, layout);
-        }
-
-        // Simple markdown to HTML converter
-        function convertMarkdownToHTML(markdown) {
-            // Very basic implementation
-            let html = markdown
-                // Headers
-                .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-                .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-                .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-                // Bold
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                // Italic
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                // Lists
-                .replace(/^\- (.*$)/gm, '<li>$1</li>')
-                // Code blocks
-                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-
-            // Wrap lists
-            html = html.replace(/<li>.*(?:\r\n|\r|\n)<li>/g, function (match) {
-                return '<ul>' + match.replace(/<\/li>(?:\r\n|\r|\n)<li>/g, '</li><li>') + '</ul>';
-            });
-
-            return html;
         }
 
         // Initialize County Heatmap when tab is clicked
