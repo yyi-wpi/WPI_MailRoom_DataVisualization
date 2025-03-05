@@ -289,35 +289,94 @@
     
     <!-- D3 Script -->
     <script>
+        // Create loading indicator
+        d3.select("body").append("div")
+            .attr("id", "loading-indicator")
+            .style("position", "fixed")
+            .style("top", "50%")
+            .style("left", "50%")
+            .style("transform", "translate(-50%, -50%)")
+            .style("background-color", "rgba(0, 0, 0, 0.8)")
+            .style("color", "white")
+            .style("padding", "20px")
+            .style("border-radius", "10px")
+            .style("z-index", "1000")
+            .style("font-size", "20px")
+            .text("Loading data...");
+            
         // Define tooltip divs
         const tooltip = d3.select("body").append("div")
             .attr("class", "tooltip")
             .style("opacity", 0);
             
-        // Load data
-        d3.csv("Cleaned_Package_Data_County_FIPS.csv").then(function(data) {
-            // Process data
-            const processedData = processData(data);
-            
-            // Update statistics cards
-            updateStatistics(processedData);
-            
-            // Create all visualizations
-            createSankeyDiagram(processedData);
-            createCarrierBar(processedData);
-            createHistogram(processedData);
-            createLineChart(processedData);
-            createPieChart(processedData);
-            createPickupHeatmap(processedData);
-            
-            // Initialize county map when tab is activated
-            d3.select('#county-map-tab').on('click', function() {
-                // Only initialize if it hasn't been created yet
-                if (!d3.select("#gMap").selectAll("*").size()) {
-                    initializeCountyMap(data);
+        // Helper function to display errors
+        function showError(message) {
+            const loadingIndicator = d3.select("#loading-indicator");
+            loadingIndicator.style("background-color", "rgba(255, 0, 0, 0.8)")
+                .html(`<strong>Error:</strong> ${message}<br><br>
+                       <div style="font-size:14px;">Possible solutions:<br>
+                       1. Make sure the CSV file is in the same directory<br>
+                       2. Try running on a local server (like http-server from npm)<br>
+                       3. Check console for detailed error messages</div>`);
+            console.error(message);
+        }
+        
+        // Try to load the data
+        d3.csv("Cleaned_Package_Data_County_FIPS.csv")
+            .then(function(data) {
+                // Hide loading indicator
+                d3.select("#loading-indicator").remove();
+                
+                console.log("Data loaded successfully. Sample:", data.slice(0, 3));
+                
+                if (!data || data.length === 0) {
+                    showError("Data loaded but appears to be empty");
+                    return;
                 }
+                
+                // Process data
+                const processedData = processData(data);
+                
+                // Update statistics cards
+                updateStatistics(processedData);
+                
+                // Create all visualizations
+                createSankeyDiagram(processedData);
+                createCarrierBar(processedData);
+                createHistogram(processedData);
+                createLineChart(processedData);
+                createPieChart(processedData);
+                createPickupHeatmap(processedData);
+                
+                // Initialize county map when tab is activated
+                d3.select('#county-map-tab').on('click', function() {
+                    // Only initialize if it hasn't been created yet
+                    if (!d3.select("#gMap").selectAll("*").size()) {
+                        initializeCountyMap(data);
+                    }
+                });
+            })
+            .catch(function(error) {
+                showError(`Failed to load data: ${error.message}`);
+                
+                // Add option to use sample data
+                const loadingIndicator = d3.select("#loading-indicator");
+                const button = loadingIndicator.append("button")
+                    .style("display", "block")
+                    .style("margin", "10px auto")
+                    .style("padding", "8px 16px")
+                    .style("background", "#4CAF50")
+                    .style("color", "white")
+                    .style("border", "none")
+                    .style("border-radius", "4px")
+                    .style("cursor", "pointer")
+                    .text("Use Sample Data Instead");
+                    
+                button.on("click", function() {
+                    loadingIndicator.remove();
+                    useSampleData();
+                });
             });
-        });
         
         // County Map Functions (from heatmap_filtering.html)
         function initializeCountyMap(fullData) {
@@ -707,6 +766,99 @@
             });
         }
         });
+        
+        // Function to use sample data when real data can't be loaded
+        function useSampleData() {
+            console.log("Using sample data instead");
+            
+            // Create sample data with the expected structure
+            const sampleData = generateSampleData(1000);
+            console.log("Sample data generated:", sampleData.slice(0, 3));
+            
+            // Process data
+            const processedData = processData(sampleData);
+            
+            // Update statistics cards
+            updateStatistics(processedData);
+            
+            // Create all visualizations
+            createSankeyDiagram(processedData);
+            createCarrierBar(processedData);
+            createHistogram(processedData);
+            createLineChart(processedData);
+            createPieChart(processedData);
+            createPickupHeatmap(processedData);
+            
+            // Initialize county map when tab is activated
+            d3.select('#county-map-tab').on('click', function() {
+                // Only initialize if it hasn't been created yet
+                if (!d3.select("#gMap").selectAll("*").size()) {
+                    initializeCountyMap(sampleData);
+                }
+            });
+        }
+        
+        // Function to generate sample data
+        function generateSampleData(count) {
+            const carriers = ["UPS", "USPS", "FedEx", "Amazon", "DHL"];
+            const states = ["CA", "NY", "TX", "FL", "IL", "PA", "OH", "GA", "NC", "MI"];
+            const counties = ["Los Angeles", "Cook", "Harris", "Maricopa", "San Diego", "Orange", "Kings", "Miami-Dade", "Dallas", "Queens"];
+            const fips = ["06037", "17031", "48201", "04013", "06073", "06059", "36047", "12086", "48113", "36081"];
+            
+            // Generate random date in the past year
+            function randomDate() {
+                const end = new Date();
+                const start = new Date(end);
+                start.setFullYear(start.getFullYear() - 1);
+                return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+            }
+            
+            // Create sample data array
+            const data = [];
+            
+            for (let i = 0; i < count; i++) {
+                // Create base date for this package
+                const routedDate = randomDate();
+                
+                // Processing times (in hours)
+                const routedToStored = 1 + Math.random() * 24; // 1-25 hours
+                const storedToDelivered = 5 + Math.random() * 48; // 5-53 hours
+                
+                // Calculate other dates based on processing times
+                const storedDate = new Date(routedDate.getTime() + routedToStored * 60 * 60 * 1000);
+                const deliveredDate = new Date(storedDate.getTime() + storedToDelivered * 60 * 60 * 1000);
+                
+                // Random carrier, state, county, and FIPS
+                const carrierIndex = Math.floor(Math.random() * carriers.length);
+                const stateIndex = Math.floor(Math.random() * states.length);
+                
+                // Format dates as strings (MM/DD/YYYY HH:MM)
+                const formatDate = (date) => {
+                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const day = date.getDate().toString().padStart(2, '0');
+                    const year = date.getFullYear();
+                    const hours = date.getHours().toString().padStart(2, '0');
+                    const minutes = date.getMinutes().toString().padStart(2, '0');
+                    return `${month}/${day}/${year} ${hours}:${minutes}`;
+                };
+                
+                // Create package data
+                data.push({
+                    "Carrier": carriers[carrierIndex],
+                    "Routed Date Time": formatDate(routedDate),
+                    "Stored Date Time": formatDate(storedDate),
+                    "Delivered Date Time": formatDate(deliveredDate),
+                    "Origin State": states[stateIndex],
+                    "Origin County": counties[stateIndex],
+                    "County FIPS": fips[stateIndex],
+                    "Routed → Stored": routedToStored,
+                    "Stored → Delivered": storedToDelivered,
+                    "Total Processing Time": routedToStored + storedToDelivered
+                });
+            }
+            
+            return data;
+        }
         
         // Load README (fallback to a default message if not available)
         d3.text("README.md").then(function(text) {
