@@ -1,1 +1,1129 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Ultimate Package Analytics Dashboard</title>
+    
+    <!-- Include necessary libraries -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom CSS to match the CYBORG theme -->
+    <style>
+        body {
+            background-color: #060606;
+            color: #fff;
+            font-family: sans-serif;
+            padding: 20px;
+        }
+        .app-header {
+            margin-bottom: 20px;
+        }
+        .dashboard-stats {
+            margin-bottom: 20px;
+        }
+        .card {
+            background-color: #121212;
+            border: 1px solid #333;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            color: #fff;
+        }
+        .nav-tabs .nav-link {
+            color: #fff;
+            background-color: #222;
+            border-color: #333;
+        }
+        .nav-tabs .nav-link.active {
+            color: #fff;
+            background-color: #121212;
+            border-color: #333;
+        }
+        
+        /* County map styles */
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .county {
+            stroke: #bbb;
+            stroke-width: 0.3px;
+        }
+        .state {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgb(0, 0, 0);
+            padding: 15px;
+            pointer-events: none;
+            font-family: sans-serif;
+            color: rgb(0, 0, 0);
+            border-radius: 5px;
+        }
+        .legend-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .bar {
+            cursor: pointer;
+        }
+        .carrier-chart {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .bar-tooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgb(0, 0, 0);
+            padding: 5px;
+            pointer-events: none;
+            font-family: sans-serif;
+            color: rgb(0, 0, 0);
+            border-radius: 3px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        #county-heatmap-container {
+            height: 800px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="app-header">
+            <h1 class="text-center" style="color: #FFD700; padding: 20px;">📦 Ultimate Package Tracking Dashboard 🚀</h1>
+            <hr>
+        </div>
+        
+        <div class="row dashboard-stats text-center">
+            <div class="col-md-4">
+                <h4 style="color: #FF4500; font-size: 24px;">📦 Total Packages: <span id="total-packages">0</span></h4>
+            </div>
+            <div class="col-md-4">
+                <h4 style="color: #32CD32; font-size: 24px;">🚚 Top Carrier: <span id="top-carrier">Loading...</span></h4>
+            </div>
+            <div class="col-md-4">
+                <h4 style="color: #1E90FF; font-size: 24px;">⏳ Avg. Processing Time: <span id="avg-processing-time">0</span> Hours</h4>
+            </div>
+        </div>
+        
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="package-flow-tab" data-bs-toggle="tab" data-bs-target="#package-flow" type="button" role="tab" aria-controls="package-flow" aria-selected="true">📦 Package Flow</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="county-map-tab" data-bs-toggle="tab" data-bs-target="#county-map" type="button" role="tab" aria-controls="county-map" aria-selected="false">🌍 County Map</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="county-heatmap-tab" data-bs-toggle="tab" data-bs-target="#county-heatmap" type="button" role="tab" aria-controls="county-heatmap" aria-selected="false">🗺️ County Heatmap</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="statistical-insights-tab" data-bs-toggle="tab" data-bs-target="#statistical-insights" type="button" role="tab" aria-controls="statistical-insights" aria-selected="false">📈 Statistical Insights</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="additional-insights-tab" data-bs-toggle="tab" data-bs-target="#additional-insights" type="button" role="tab" aria-controls="additional-insights" aria-selected="false">📊 Additional Insights</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="heatmap-trends-tab" data-bs-toggle="tab" data-bs-target="#heatmap-trends" type="button" role="tab" aria-controls="heatmap-trends" aria-selected="false">🔥 Heatmap & Trends</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="readme-tab" data-bs-toggle="tab" data-bs-target="#readme" type="button" role="tab" aria-controls="readme" aria-selected="false">📄 README.md</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="myTabContent">
+            <!-- Package Flow Tab -->
+            <div class="tab-pane fade show active" id="package-flow" role="tabpanel" aria-labelledby="package-flow-tab">
+                <div class="card mt-3 shadow-lg">
+                    <div class="card-body">
+                        <h3 class="card-title text-center">📊 Real-time Package Flow</h3>
+                        <div id="sankey-graph" style="width: 100%; height: 600px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- County Map Tab -->
+            <div class="tab-pane fade" id="county-map" role="tabpanel" aria-labelledby="county-map-tab">
+                <div class="card mt-3 shadow-lg">
+                    <div class="card-body">
+                        <h3 class="card-title text-center">🌍 County Map</h3>
+                        <p class="text-center">Opens in a new window for full-screen viewing.</p>
+                        <div class="text-center">
+                            <button id="open-county-map" class="btn btn-primary">Open County Map</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- County Heatmap Tab (New) -->
+            <div class="tab-pane fade" id="county-heatmap" role="tabpanel" aria-labelledby="county-heatmap-tab">
+                <div class="card mt-3 shadow-lg">
+                    <div class="card-body">
+                        <h3 class="card-title text-center">🗺️ US County Package Distribution</h3>
+                        <div id="county-heatmap-container" class="container">
+                            <div class="title">US County Package Distribution</div>
+                            <div class="subtitle">Click on a carrier to filter the map</div>
+                            
+                            <!-- Carrier bar chart container -->
+                            <div class="carrier-chart">
+                                <svg id="barChart" width="800" height="200"></svg>
+                            </div>
+                            
+                            <!-- Map container -->
+                            <svg id="map" width="960" height="600">
+                                <g id="gMap"></g>
+                            </svg>
+                            
+                            <!-- Legend container -->
+                            <div class="legend-container">
+                                <svg id="legend" width="500" height="60"></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statistical Insights Tab -->
+            <div class="tab-pane fade" id="statistical-insights" role="tabpanel" aria-labelledby="statistical-insights-tab">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mt-3 shadow-lg">
+                            <div class="card-body">
+                                <h3 class="card-title text-center">📊 Carrier Distribution</h3>
+                                <div id="carrier-bar" style="width: 100%; height: 400px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mt-3 shadow-lg">
+                            <div class="card-body">
+                                <h3 class="card-title text-center">📦 Package Processing Histogram</h3>
+                                <div id="histogram" style="width: 100%; height: 400px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional Insights Tab -->
+            <div class="tab-pane fade" id="additional-insights" role="tabpanel" aria-labelledby="additional-insights-tab">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mt-3 shadow-lg">
+                            <div class="card-body">
+                                <h3 class="card-title text-center">📊 Processing Time Over Time</h3>
+                                <div id="line-chart" style="width: 100%; height: 400px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mt-3 shadow-lg">
+                            <div class="card-body">
+                                <h3 class="card-title text-center">📦 Package Volume by Carrier</h3>
+                                <div id="pie-chart" style="width: 100%; height: 400px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Heatmap & Trends Tab -->
+            <div class="tab-pane fade" id="heatmap-trends" role="tabpanel" aria-labelledby="heatmap-trends-tab">
+                <div class="card mt-3 shadow-lg">
+                    <div class="card-body">
+                        <h3 class="card-title text-center">⏰ Package Pickup Heatmap</h3>
+                        <div id="heatmap" style="width: 100%; height: 600px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- README Tab -->
+            <div class="tab-pane fade" id="readme" role="tabpanel" aria-labelledby="readme-tab">
+                <div class="card mt-3 shadow-lg">
+                    <div class="card-body">
+                        <h3 class="card-title text-center">📄 Project Documentation</h3>
+                        <div id="readme-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Dashboard Script -->
+    <script>
+        // Global variables
+        let parsedData = [];
+        let countyHeatmapInitialized = false;
+        
+        // Load and process data
+        function loadData() {
+            // Fetch CSV file
+            fetch('Cleaned_Package_Data_County_FIPS.csv')
+                .then(response => response.text())
+                .then(data => {
+                    // Parse CSV data using PapaParse
+                    Papa.parse(data, {
+                        header: true,
+                        dynamicTyping: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            parsedData = results.data;
+                            
+                            // Process dates
+                            parsedData.forEach(row => {
+                                const dateColumns = ["Routed Date Time", "Stored Date Time", "Delivered Date Time"];
+                                for (const col of dateColumns) {
+                                    if (row[col]) {
+                                        row[col] = new Date(row[col]);
+                                    }
+                                }
+                                
+                                // Calculate processing times
+                                if (row['Routed Date Time'] && row['Delivered Date Time']) {
+                                    row['Total Processing Time'] = (row['Delivered Date Time'] - row['Routed Date Time']) / (1000 * 60 * 60);
+                                    
+                                    if (row['Stored Date Time']) {
+                                        row['Routed → Stored'] = (row['Stored Date Time'] - row['Routed Date Time']) / (1000 * 60 * 60);
+                                        row['Stored → Delivered'] = (row['Delivered Date Time'] - row['Stored Date Time']) / (1000 * 60 * 60);
+                                    }
+                                }
+                            });
+                            
+                            // Update dashboard
+                            updateDashboardStats();
+                            createSankeyDiagram();
+                            createCarrierBarChart();
+                            createProcessingHistogram();
+                            createLineChart();
+                            createPieChart();
+                            createHeatmap();
+                        }
+                    });
+                });
+                
+            // Load README.md for the README tab
+            fetch('README.md')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('readme-content').innerHTML = convertMarkdownToHTML(data);
+                })
+                .catch(error => {
+                    document.getElementById('readme-content').innerHTML = "<p>README.md not found or could not be loaded.</p>";
+                });
+        }
+        
+        // Update dashboard stats
+        function updateDashboardStats() {
+            document.getElementById('total-packages').textContent = parsedData.length;
+            
+            // Find top carrier
+            const carrierCounts = {};
+            parsedData.forEach(row => {
+                if (row['Carrier']) {
+                    carrierCounts[row['Carrier']] = (carrierCounts[row['Carrier']] || 0) + 1;
+                }
+            });
+            
+            let topCarrier = '';
+            let maxCount = 0;
+            for (const carrier in carrierCounts) {
+                if (carrierCounts[carrier] > maxCount) {
+                    maxCount = carrierCounts[carrier];
+                    topCarrier = carrier;
+                }
+            }
+            
+            document.getElementById('top-carrier').textContent = topCarrier;
+            
+            // Calculate average processing time
+            let totalTime = 0;
+            let count = 0;
+            
+            parsedData.forEach(row => {
+                if (row['Total Processing Time']) {
+                    totalTime += row['Total Processing Time'];
+                    count++;
+                }
+            });
+            
+            const avgTime = count > 0 ? (totalTime / count).toFixed(2) : '0.00';
+            document.getElementById('avg-processing-time').textContent = avgTime;
+        }
+        
+        // Create Sankey Diagram
+        function createSankeyDiagram() {
+            // Calculate average times
+            let routedToStored = 0;
+            let storedToDelivered = 0;
+            let count = 0;
+            
+            parsedData.forEach(row => {
+                if (row['Routed → Stored'] && row['Stored → Delivered']) {
+                    routedToStored += row['Routed → Stored'];
+                    storedToDelivered += row['Stored → Delivered'];
+                    count++;
+                }
+            });
+            
+            routedToStored = count > 0 ? routedToStored / count : 0;
+            storedToDelivered = count > 0 ? storedToDelivered / count : 0;
+            
+            // Simplified values for demonstration
+            const sources = [0, 1, 1, 2, 2];
+            const targets = [1, 2, 3, 3, 4];
+            const values = [routedToStored, storedToDelivered, 4000, 3200, 1200];
+            const labels = ["📦 Arrived", "📍 Sorting", "📦 Storage", "🚀 Out for Delivery", "🏡 Delivered"];
+            
+            const data = {
+                type: "sankey",
+                node: {
+                    pad: 15,
+                    thickness: 40,
+                    line: {
+                        color: "black",
+                        width: 1
+                    },
+                    label: labels
+                },
+                link: {
+                    source: sources,
+                    target: targets,
+                    value: values
+                }
+            };
+            
+            const layout = {
+                font: {
+                    size: 14,
+                    color: '#fff'
+                },
+                paper_bgcolor: '#121212',
+                plot_bgcolor: '#121212'
+            };
+            
+            Plotly.newPlot('sankey-graph', [data], layout);
+        }
+        
+        // Create Carrier Bar Chart
+        function createCarrierBarChart() {
+            // Aggregate data by carrier
+            const carrierCounts = {};
+            parsedData.forEach(row => {
+                if (row['Carrier']) {
+                    carrierCounts[row['Carrier']] = (carrierCounts[row['Carrier']] || 0) + 1;
+                }
+            });
+            
+            const carriers = Object.keys(carrierCounts);
+            const counts = carriers.map(carrier => carrierCounts[carrier]);
+            
+            const data = [{
+                x: carriers,
+                y: counts,
+                type: 'bar',
+                marker: {
+                    color: carriers.map((_, i) => `hsl(${i * 360 / carriers.length}, 70%, 50%)`)
+                }
+            }];
+            
+            const layout = {
+                title: '📊 Carrier Distribution',
+                font: {
+                    size: 14,
+                    color: '#fff'
+                },
+                paper_bgcolor: '#121212',
+                plot_bgcolor: '#121212',
+                xaxis: {
+                    title: 'Carrier',
+                    color: '#fff'
+                },
+                yaxis: {
+                    title: 'Count',
+                    color: '#fff'
+                }
+            };
+            
+            Plotly.newPlot('carrier-bar', data, layout);
+        }
+        
+        // Create Processing Histogram
+        function createProcessingHistogram() {
+            const processingTimes = parsedData
+                .filter(row => row['Total Processing Time'] !== undefined && row['Total Processing Time'] < 200) // Filter out extreme outliers
+                .map(row => row['Total Processing Time']);
+            
+            const data = [{
+                x: processingTimes,
+                type: 'histogram',
+                nbinsx: 50,
+                marker: {
+                    color: '#1E90FF'
+                }
+            }];
+            
+            const layout = {
+                title: '⏳ Processing Time Distribution',
+                font: {
+                    size: 14,
+                    color: '#fff'
+                },
+                paper_bgcolor: '#121212',
+                plot_bgcolor: '#121212',
+                xaxis: {
+                    title: 'Processing Time (Hours)',
+                    color: '#fff'
+                },
+                yaxis: {
+                    title: 'Frequency',
+                    color: '#fff'
+                }
+            };
+            
+            Plotly.newPlot('histogram', data, layout);
+        }
+        
+        // Create Line Chart
+        function createLineChart() {
+            // Sort data by date
+            const timeData = parsedData
+                .filter(row => row['Routed Date Time'] && row['Total Processing Time'])
+                .sort((a, b) => a['Routed Date Time'] - b['Routed Date Time']);
+            
+            // Group by day for better visualization
+            const dailyAvg = {};
+            timeData.forEach(row => {
+                const date = row['Routed Date Time'].toISOString().split('T')[0];
+                if (!dailyAvg[date]) {
+                    dailyAvg[date] = { sum: 0, count: 0 };
+                }
+                dailyAvg[date].sum += row['Total Processing Time'];
+                dailyAvg[date].count++;
+            });
+            
+            const dates = Object.keys(dailyAvg);
+            const avgTimes = dates.map(date => dailyAvg[date].sum / dailyAvg[date].count);
+            
+            const data = [{
+                x: dates,
+                y: avgTimes,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: {
+                    color: '#FF4500',
+                    width: 2
+                },
+                marker: {
+                    color: '#FF4500',
+                    size: 6
+                }
+            }];
+            
+            const layout = {
+                title: '📊 Processing Time Over Time',
+                font: {
+                    size: 14,
+                    color: '#fff'
+                },
+                paper_bgcolor: '#121212',
+                plot_bgcolor: '#121212',
+                xaxis: {
+                    title: 'Date',
+                    color: '#fff'
+                },
+                yaxis: {
+                    title: 'Avg. Processing Time (Hours)',
+                    color: '#fff'
+                }
+            };
+            
+            Plotly.newPlot('line-chart', data, layout);
+        }
+        
+        // Create Pie Chart
+        function createPieChart() {
+            // Aggregate data by carrier
+            const carrierCounts = {};
+            parsedData.forEach(row => {
+                const carrier = row['Carrier'] || 'Unknown';
+                carrierCounts[carrier] = (carrierCounts[carrier] || 0) + 1;
+            });
+            
+            const carriers = Object.keys(carrierCounts);
+            const counts = carriers.map(carrier => carrierCounts[carrier]);
+            
+            const data = [{
+                labels: carriers,
+                values: counts,
+                type: 'pie',
+                marker: {
+                    colors: carriers.map((_, i) => `hsl(${i * 360 / carriers.length}, 70%, 50%)`)
+                },
+                textinfo: 'label+percent',
+                textposition: 'inside'
+            }];
+            
+            const layout = {
+                title: '📦 Package Volume by Carrier',
+                font: {
+                    size: 14,
+                    color: '#fff'
+                },
+                paper_bgcolor: '#121212',
+                plot_bgcolor: '#121212'
+            };
+            
+            Plotly.newPlot('pie-chart', data, layout);
+        }
+        
+        // Create Heatmap
+        function createHeatmap() {
+            // Extract hour of day and day of week
+            const heatmapData = [];
+            
+            parsedData.forEach(row => {
+                if (row['Delivered Date Time']) {
+                    const hour = row['Delivered Date Time'].getHours();
+                    const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][row['Delivered Date Time'].getDay()];
+                    
+                    // Find or create entry
+                    let entry = heatmapData.find(d => d.hour === hour && d.day === dayOfWeek);
+                    if (!entry) {
+                        entry = { hour, day: dayOfWeek, count: 0 };
+                        heatmapData.push(entry);
+                    }
+                    
+                    entry.count++;
+                }
+            });
+            
+            // Create hourly bins
+            const hours = Array.from({length: 24}, (_, i) => i);
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            
+            // Ensure all combinations exist
+            hours.forEach(hour => {
+                days.forEach(day => {
+                    if (!heatmapData.find(d => d.hour === hour && d.day === day)) {
+                        heatmapData.push({ hour, day, count: 0 });
+                    }
+                });
+            });
+            
+            // Create z values matrix
+            const zValues = days.map(day => 
+                hours.map(hour => {
+                    const entry = heatmapData.find(d => d.hour === hour && d.day === day);
+                    return entry ? entry.count : 0;
+                })
+            );
+            
+            const data = [{
+                z: zValues,
+                x: hours.map(h => h.toString()),
+                y: days,
+                type: 'heatmap',
+                colorscale: 'Hot',
+                colorbar: {
+                    title: 'Count',
+                    titleside: 'right'
+                }
+            }];
+            
+            const layout = {
+                title: '⏰ Package Pickup Heatmap',
+                font: {
+                    size: 14,
+                    color: '#fff'
+                },
+                paper_bgcolor: '#121212',
+                plot_bgcolor: '#121212',
+                xaxis: {
+                    title: 'Hour of Day',
+                    color: '#fff'
+                },
+                yaxis: {
+                    title: 'Day of Week',
+                    color: '#fff'
+                }
+            };
+            
+            Plotly.newPlot('heatmap', data, layout);
+        }
+        
+        // Simple markdown to HTML converter
+        function convertMarkdownToHTML(markdown) {
+            // Very basic implementation
+            let html = markdown
+                // Headers
+                .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+                // Bold
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Italic
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                // Lists
+                .replace(/^\- (.*$)/gm, '<li>$1</li>')
+                // Code blocks
+                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+                
+            // Wrap lists
+            html = html.replace(/<li>.*(?:\r\n|\r|\n)<li>/g, function(match) {
+                return '<ul>' + match.replace(/<\/li>(?:\r\n|\r|\n)<li>/g, '</li><li>') + '</ul>';
+            });
+            
+            return html;
+        }
+        
+        // Handle "Open County Map" button
+        document.getElementById('open-county-map').addEventListener('click', function() {
+            window.open('countymaplog.html', '_blank');
+        });
+        
+        // Initialize County Heatmap when tab is clicked
+        document.getElementById('county-heatmap-tab').addEventListener('click', function() {
+            if (!countyHeatmapInitialized) {
+                initCountyHeatmap();
+                countyHeatmapInitialized = true;
+            }
+        });
+        
+        // Handle tab switching to properly size Plotly charts
+        document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', function (e) {
+                // Resize charts when a tab becomes visible
+                window.dispatchEvent(new Event('resize'));
+            });
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+    
+    <!-- County Heatmap Script -->
+    <script>
+        function initCountyHeatmap() {
+            const width = 960, height = 600;
+            const svg = d3.select("#map");
+            const gMap = svg.select("#gMap");
+
+            // Create zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([1, 100])
+                .on("zoom", (event) => {
+                    gMap.attr("transform", event.transform);
+
+                    const currentScale = event.transform.k;
+                    const countyStrokeWidth = Math.max(0.3 / currentScale, 0.05);
+                    const stateStrokeWidth = Math.max(2 / currentScale, 0.2);
+
+                    d3.selectAll(".county").style("stroke-width", countyStrokeWidth + "px");
+                    d3.selectAll(".state").style("stroke-width", stateStrokeWidth + "px");
+                });
+
+            svg.call(zoom);
+
+            // Create tooltip div for map
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+
+            // Create tooltip div for bar chart
+            const barTooltip = d3.select("body").append("div")
+                .attr("class", "bar-tooltip")
+                .style("opacity", 0);
+
+            // Define carrier colors (using a color scheme that will be visually distinct)
+            const carrierColors = {
+                "UPS": "#8B4513",         // Brown for UPS
+                "USPS": "#1E90FF",        // Blue for USPS
+                "FedEx": "#800080",       // Purple for FedEx
+                "Amazon": "#FF8C00",      // Orange for Amazon
+                "DHL": "#FFD700",         // Gold/Yellow for DHL
+                "Other": "#2E8B57"        // Sea Green for any other carrier
+            };
+
+            // Default color for 'Other' carriers
+            const defaultCarrierColor = "#2E8B57"; 
+
+            // Current filter state
+            let currentFilter = null;
+
+            // Load county map data
+            d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(us => {
+                const counties = topojson.feature(us, us.objects.counties);
+                const states = topojson.mesh(us, us.objects.states);
+
+                // Load and process CSV data
+                fetch('Cleaned_Package_Data_County_FIPS.csv')
+                    .then(response => response.text())
+                    .then(csvData => {
+                        Papa.parse(csvData, {
+                            header: true,
+                            dynamicTyping: true,
+                            skipEmptyLines: true,
+                            complete: function(results) {
+                                const data = results.data;
+                                
+                                // Filter out rows with empty County FIPS
+                                const filteredData = data.filter(d => d["County FIPS"] && d["County FIPS"].toString().trim() !== "");
+                                
+                                // Process data for map
+                                const processMapData = (data) => {
+                                    let countyCounts = d3.rollup(data, v => v.length, d => d["County FIPS"]);
+                                    return countyCounts;
+                                };
+
+                                // Process data for carrier chart
+                                const processCarrierData = (data) => {
+                                    let carrierCounts = d3.rollup(data, v => v.length, d => d["Carrier"] || "Unknown");
+                                    
+                                    // Convert to array for chart
+                                    let carrierData = Array.from(carrierCounts, ([key, value]) => ({
+                                        carrier: key === "Unknown" ? "Other" : key,
+                                        count: value
+                                    }));
+                                    
+                                    // Sort by count (descending)
+                                    carrierData.sort((a, b) => b.count - a.count);
+                                    
+                                    return carrierData;
+                                };
+
+                                // Store the full dataset
+                                const fullData = filteredData;
+                                let filteredMapData = fullData;
+                                
+                                // Create maps to store county information
+                                const countyInfo = new Map();
+                                filteredData.forEach(d => {
+                                    countyInfo.set(d["County FIPS"], {
+                                        county: d["Origin County"],
+                                        state: d["Origin State"]
+                                    });
+                                });
+
+                                // Initialize map with all data
+                                let countyCounts = processMapData(filteredMapData);
+                                const maxCount = d3.max([...countyCounts.values()]);
+
+                                // Create color scale for map
+                                const colorScale = d3.scaleLog()
+                                    .domain([1, maxCount])
+                                    .range(["#ffe6e6", "#ff0000"])
+                                    .clamp(true);
+                                
+                                const getColor = (count) => count > 0 ? colorScale(count) : "#fcfcfc";
+                                const path = d3.geoPath();
+
+                                // Create county features
+                                const countyFeatures = gMap.append("g")
+                                    .selectAll("path")
+                                    .data(counties.features)
+                                    .enter().append("path")
+                                    .attr("class", "county")
+                                    .attr("d", path)
+                                    .attr("fill", d => getColor(countyCounts.get(d.id) || 0))
+                                    .on("mouseover", function(event, d) {
+                                        const currentScale = d3.zoomTransform(svg.node()).k; 
+                                        const hoverStrokeWidth = Math.max(1 / currentScale, 0.2); 
+
+                                        const countyFIPS = d.id;
+                                        const count = countyCounts.get(countyFIPS) || 0;
+                                        const info = countyInfo.get(countyFIPS) || { county: "Unknown", state: "Unknown" };
+
+                                        if (count === 0) return;
+
+                                        tooltip.transition().duration(200).style("opacity", 1);
+                                        tooltip.html(`<strong>${info.county} County, ${info.state}</strong><br>Packages: ${count}`)
+                                            .style("left", (event.pageX + 10) + "px")
+                                            .style("top", (event.pageY - 28) + "px");
+
+                                        d3.select(this)
+                                            .style("stroke", "black")
+                                            .style("stroke-width", hoverStrokeWidth + "px")
+                                            .raise();
+                                    })
+                                    .on("mouseout", function() {
+                                        const currentScale = d3.zoomTransform(svg.node()).k; 
+                                        const normalStrokeWidth = Math.max(0.3 / currentScale, 0.05); 
+
+                                        tooltip.transition().duration(500).style("opacity", 0);
+
+                                        d3.select(this)
+                                            .style("stroke", "#bbb") 
+                                            .style("stroke-width", normalStrokeWidth + "px");
+                                    });
+
+                                // Create state boundaries
+                                gMap.append("path")
+                                    .datum(states)
+                                    .attr("class", "state")
+                                    .attr("d", path)
+                                    .attr("fill", "none");
+
+                                // Create map legend
+                                createMapLegend(maxCount, colorScale);
+                                
+                                // Process carrier data and create bar chart
+                                const carrierData = processCarrierData(fullData);
+                                createCarrierChart(carrierData);
+                                
+                                // Function to create map legend
+                                function createMapLegend(maxCount, colorScale) {
+                                    const legendSvg = d3.select("#legend");
+                                    legendSvg.selectAll("*").remove(); // Clear existing content
+                                    
+                                    const legendWidth = 300, legendHeight = 20, legendMargin = { top: 20, right: 20, bottom: 20, left: 20 };
+                                    
+                                    const logScale = d3.scaleLog()
+                                        .domain([1, maxCount])
+                                        .range([0, legendWidth]);
+
+                                    const defs = legendSvg.append("defs");
+                                    const gradient = defs.append("linearGradient")
+                                        .attr("id", "legend-gradient")
+                                        .attr("x1", "0%").attr("x2", "100%")
+                                        .attr("y1", "0%").attr("y2", "0%");
+
+                                    const numStops = 10;
+                                    for (let i = 0; i <= numStops; i++) {
+                                        const t = i / numStops;
+                                        const logValue = Math.pow(maxCount, t);
+                                        gradient.append("stop")
+                                            .attr("offset", `${t * 100}%`)
+                                            .attr("stop-color", colorScale(logValue));
+                                    }
+                                    
+                                    const legend = legendSvg.append("g")
+                                        .attr("transform", `translate(${(500 - legendWidth) / 2}, ${legendMargin.top})`);
+
+                                    legend.append("rect")
+                                        .attr("width", legendWidth)
+                                        .attr("height", legendHeight)
+                                        .style("fill", "url(#legend-gradient)")
+                                        .style("stroke", "#ccc")
+                                        .style("stroke-width", "1px");
+
+                                    legendSvg.append("text")
+                                        .attr("x", 500 / 2)
+                                        .attr("y", 15)
+                                        .style("text-anchor", "middle")
+                                        .style("font-weight", "bold")
+                                        .text(currentFilter ? `Packages from County (${currentFilter} Only)` : "Packages from County (Log Scale)");
+
+                                    const tickValues = [];
+                                    let baseTick = 1;
+                                    while (baseTick <= maxCount) {
+                                        tickValues.push(baseTick);
+                                        baseTick *= 10;
+                                    }
+
+                                    if (maxCount < 10) tickValues.splice(1, 0, 2, 5);
+
+                                    tickValues.forEach(value => {
+                                        if (value <= maxCount && value > 1) {
+                                            const xPos = logScale(value);
+                                            legend.append("line")
+                                                .attr("x1", xPos).attr("x2", xPos)
+                                                .attr("y1", legendHeight).attr("y2", legendHeight + 5)
+                                                .style("stroke", "#000").style("stroke-width", "1px");
+
+                                            legend.append("text")
+                                                .attr("x", xPos)
+                                                .attr("y", legendHeight + 15)
+                                                .style("text-anchor", "middle")
+                                                .text(value);
+                                        }
+                                    });
+
+                                    // Add min and max labels
+                                    legend.append("text")
+                                        .attr("x", 0)
+                                        .attr("y", legendHeight + 15)
+                                        .style("text-anchor", "middle")
+                                        .text("1");
+                                    
+                                    legend.append("line")
+                                        .attr("x1", 0)
+                                        .attr("x2", 0)
+                                        .attr("y1", legendHeight)
+                                        .attr("y2", legendHeight + 5)
+                                        .style("stroke", "#000")
+                                        .style("stroke-width", "1px");
+                                    
+                                    legend.append("text")
+                                        .attr("x", legendWidth)
+                                        .attr("y", legendHeight + 15)
+                                        .style("text-anchor", "middle")
+                                        .text(maxCount);
+
+                                    legend.append("line")
+                                        .attr("x1", legendWidth)
+                                        .attr("x2", legendWidth)
+                                        .attr("y1", legendHeight)
+                                        .attr("y2", legendHeight + 5)
+                                        .style("stroke", "#000")
+                                        .style("stroke-width", "1px");
+                                }
+
+                                // Function to create carrier bar chart
+                                function createCarrierChart(data) {
+                                    const barSvg = d3.select("#barChart");
+                                    barSvg.selectAll("*").remove(); // Clear existing content
+                                    
+                                    const margin = { top: 30, right: 20, bottom: 50, left: 60 };
+                                    const barWidth = 800 - margin.left - margin.right;
+                                    const barHeight = 200 - margin.top - margin.bottom;
+                                    
+                                    const g = barSvg.append("g")
+                                        .attr("transform", `translate(${margin.left},${margin.top})`);
+                                    
+                                    // Set up scales
+                                    const x = d3.scaleBand()
+                                        .domain(data.map(d => d.carrier))
+                                        .range([0, barWidth])
+                                        .padding(0.3);
+                                    
+                                    const maxBarValue = d3.max(data, d => d.count);
+                                    
+                                    const y = d3.scaleLinear()
+                                        .domain([0, maxBarValue])
+                                        .nice()
+                                        .range([barHeight, 0]);
+                                    
+                                    // Add x axis
+                                    g.append("g")
+                                        .attr("transform", `translate(0,${barHeight})`)
+                                        .call(d3.axisBottom(x))
+                                        .selectAll("text")
+                                        .attr("y", 10)
+                                        .attr("x", -5)
+                                        .attr("text-anchor", "end")
+                                        .attr("transform", "rotate(-45)");
+                                    
+                                    // Add y axis
+                                    g.append("g")
+                                        .call(d3.axisLeft(y).ticks(5));
+                                    
+                                    // Add y axis label
+                                    g.append("text")
+                                        .attr("transform", "rotate(-90)")
+                                        .attr("y", -40)
+                                        .attr("x", -barHeight / 2)
+                                        .attr("text-anchor", "middle")
+                                        .text("Number of Packages");
+                                    
+                                    // Add bars
+                                    g.selectAll(".bar")
+                                        .data(data)
+                                        .enter().append("rect")
+                                        .attr("class", "bar")
+                                        .attr("x", d => x(d.carrier))
+                                        .attr("y", d => y(d.count))
+                                        .attr("width", x.bandwidth())
+                                        .attr("height", d => barHeight - y(d.count))
+                                        .attr("fill", d => carrierColors[d.carrier] || defaultCarrierColor)
+                                        .attr("stroke", "#333")
+                                        .attr("stroke-width", "1px")
+                                        .style("cursor", "pointer")
+                                        .on("mouseover", function(event, d) {
+                                            d3.select(this).attr("fill", d3.color(carrierColors[d.carrier] || defaultCarrierColor).brighter(0.5));
+                                            
+                                            barTooltip.transition().duration(200).style("opacity", 1);
+                                            barTooltip.html(`<strong>${d.carrier}</strong><br>${d.count.toLocaleString()} packages`)
+                                                .style("left", (event.pageX + 10) + "px")
+                                                .style("top", (event.pageY - 28) + "px");
+                                        })
+                                        .on("mouseout", function(event, d) {
+                                            d3.select(this).attr("fill", carrierColors[d.carrier] || defaultCarrierColor);
+                                            barTooltip.transition().duration(500).style("opacity", 0);
+                                        })
+                                        .on("click", function(event, d) {
+                                            filterMapByCarrier(d.carrier);
+                                        });
+                                }
+                                
+                                // Function to filter map by carrier
+                                function filterMapByCarrier(carrier) {
+                                    // Update filter state
+                                    if (currentFilter === carrier) {
+                                        // If clicking the same carrier again, reset filter
+                                        currentFilter = null;
+                                        filteredMapData = fullData;
+                                    } else {
+                                        // Set new filter
+                                        currentFilter = carrier;
+                                        filteredMapData = fullData.filter(d => 
+                                            carrier === "Other" 
+                                                ? !d["Carrier"] || d["Carrier"] === "Unknown" || !carrierColors[d["Carrier"]]
+                                                : d["Carrier"] === carrier
+                                        );
+                                    }
+                                    
+                                    // Update map with filtered data
+                                    updateMap();
+                                    
+                                    // Update bar chart highlighting
+                                    d3.selectAll(".bar")
+                                        .attr("opacity", d => currentFilter && d.carrier !== currentFilter ? 0.5 : 1)
+                                        .attr("stroke-width", d => d.carrier === currentFilter ? "2px" : "1px");
+                                    
+                                    // Update subtitle
+                                    d3.select(".subtitle")
+                                        .text(currentFilter 
+                                            ? `Showing packages from ${currentFilter} carrier - Click on ${currentFilter} again to reset` 
+                                            : "Click on a carrier to filter the map");
+                                }
+                                
+                                // Function to update map with filtered data
+                                function updateMap() {
+                                    // Recalculate county counts
+                                    countyCounts = processMapData(filteredMapData);
+                                    const newMaxCount = d3.max([...countyCounts.values()]) || maxCount;
+                                    
+                                    // Update color scale with new max count
+                                    const newColorScale = d3.scaleLog()
+                                        .domain([1, newMaxCount])
+                                        .range(["#ffe6e6", "#ff0000"])
+                                        .clamp(true);
+                                    
+                                    // Update county colors
+                                    countyFeatures.transition().duration(500)
+                                        .attr("fill", d => {
+                                            const count = countyCounts.get(d.id) || 0;
+                                            return count > 0 ? newColorScale(count) : "#fcfcfc";
+                                        });
+                                    
+                                    // Clear and recreate legend
+                                    createMapLegend(newMaxCount, newColorScale);
+                                }
+                            }
+                        });
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
