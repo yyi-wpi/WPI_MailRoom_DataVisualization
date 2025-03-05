@@ -289,94 +289,115 @@
     
     <!-- D3 Script -->
     <script>
-        // Create loading indicator
-        d3.select("body").append("div")
-            .attr("id", "loading-indicator")
-            .style("position", "fixed")
-            .style("top", "50%")
-            .style("left", "50%")
-            .style("transform", "translate(-50%, -50%)")
-            .style("background-color", "rgba(0, 0, 0, 0.8)")
-            .style("color", "white")
-            .style("padding", "20px")
-            .style("border-radius", "10px")
-            .style("z-index", "1000")
-            .style("font-size", "20px")
-            .text("Loading data...");
-            
         // Define tooltip divs
         const tooltip = d3.select("body").append("div")
             .attr("class", "tooltip")
             .style("opacity", 0);
-            
-        // Helper function to display errors
-        function showError(message) {
-            const loadingIndicator = d3.select("#loading-indicator");
-            loadingIndicator.style("background-color", "rgba(255, 0, 0, 0.8)")
-                .html(`<strong>Error:</strong> ${message}<br><br>
-                       <div style="font-size:14px;">Possible solutions:<br>
-                       1. Make sure the CSV file is in the same directory<br>
-                       2. Try running on a local server (like http-server from npm)<br>
-                       3. Check console for detailed error messages</div>`);
-            console.error(message);
+        
+        // Add loading indicator
+        function showLoading(selector, message = "Loading data...") {
+            d3.select(selector).html(`
+                <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>${message}</p>
+                    </div>
+                </div>
+            `);
         }
         
-        // Try to load the data
-        d3.csv("Cleaned_Package_Data_County_FIPS.csv")
-            .then(function(data) {
-                // Hide loading indicator
-                d3.select("#loading-indicator").remove();
-                
-                console.log("Data loaded successfully. Sample:", data.slice(0, 3));
-                
-                if (!data || data.length === 0) {
-                    showError("Data loaded but appears to be empty");
-                    return;
-                }
-                
-                // Process data
-                const processedData = processData(data);
-                
-                // Update statistics cards
-                updateStatistics(processedData);
-                
-                // Create all visualizations
-                createSankeyDiagram(processedData);
-                createCarrierBar(processedData);
-                createHistogram(processedData);
-                createLineChart(processedData);
-                createPieChart(processedData);
-                createPickupHeatmap(processedData);
-                
-                // Initialize county map when tab is activated
-                d3.select('#county-map-tab').on('click', function() {
-                    // Only initialize if it hasn't been created yet
-                    if (!d3.select("#gMap").selectAll("*").size()) {
-                        initializeCountyMap(data);
-                    }
-                });
-            })
-            .catch(function(error) {
-                showError(`Failed to load data: ${error.message}`);
-                
-                // Add option to use sample data
-                const loadingIndicator = d3.select("#loading-indicator");
-                const button = loadingIndicator.append("button")
-                    .style("display", "block")
-                    .style("margin", "10px auto")
-                    .style("padding", "8px 16px")
-                    .style("background", "#4CAF50")
-                    .style("color", "white")
-                    .style("border", "none")
-                    .style("border-radius", "4px")
-                    .style("cursor", "pointer")
-                    .text("Use Sample Data Instead");
+        // Show error message
+        function showError(selector, message) {
+            d3.select(selector).html(`
+                <div class="alert alert-danger m-3" role="alert">
+                    <h4 class="alert-heading">Error Loading Data</h4>
+                    <p>${message}</p>
+                    <hr>
+                    <p class="mb-0">Please make sure the CSV file is in the correct location and try again.</p>
+                </div>
+            `);
+        }
+        
+        // Add loading indicators to visualization containers
+        showLoading("#sankey-container");
+        showLoading("#carrier-bar-container");
+        showLoading("#histogram-container");
+        showLoading("#line-chart-container");
+        showLoading("#pie-chart-container");
+        showLoading("#pickup-heatmap-container");
+            
+        // Load data using FileReader API when available
+        async function loadData() {
+            try {
+                // Try to load data from the window.fs if available (when running in Claude)
+                if (typeof window.fs !== 'undefined' && window.fs.readFile) {
+                    console.log("Using window.fs to read the CSV file");
+                    const response = await window.fs.readFile('Cleaned_Package_Data_County_FIPS.csv');
+                    const csvText = new TextDecoder().decode(response);
                     
-                button.on("click", function() {
-                    loadingIndicator.remove();
-                    useSampleData();
-                });
+                    // Parse CSV
+                    const data = Papa.parse(csvText, {
+                        header: true,
+                        dynamicTyping: true,
+                        skipEmptyLines: true
+                    }).data;
+                    
+                    initializeDashboard(data);
+                } else {
+                    // Fall back to d3.csv for standard web environments
+                    console.log("Using d3.csv to read the CSV file");
+                    d3.csv("Cleaned_Package_Data_County_FIPS.csv").then(function(data) {
+                        initializeDashboard(data);
+                    }).catch(function(error) {
+                        console.error("Error loading CSV with d3:", error);
+                        showError("#sankey-container", "Failed to load the CSV file.");
+                    });
+                }
+            } catch (error) {
+                console.error("Error loading data:", error);
+                showError("#sankey-container", "Failed to load the CSV file: " + error.message);
+            }
+        }
+        
+        // Initialize all visualizations after data is loaded
+        function initializeDashboard(data) {
+            console.log("Data loaded successfully. Initializing dashboard...");
+            console.log("Number of records:", data.length);
+            
+            if (!data || data.length === 0) {
+                showError("#sankey-container", "The CSV file was loaded but contains no valid data.");
+                return;
+            }
+            
+            // Process data
+            const processedData = processData(data);
+            console.log("Data processed. Records after processing:", processedData.length);
+            
+            // Update statistics cards
+            updateStatistics(processedData);
+            
+            // Create all visualizations
+            createSankeyDiagram(processedData);
+            createCarrierBar(processedData);
+            createHistogram(processedData);
+            createLineChart(processedData);
+            createPieChart(processedData);
+            createPickupHeatmap(processedData);
+            
+            // Initialize county map when tab is activated
+            d3.select('#county-map-tab').on('click', function() {
+                // Only initialize if it hasn't been created yet
+                if (!d3.select("#gMap").selectAll("*").size()) {
+                    initializeCountyMap(data);
+                }
             });
+        }
+        
+        // Start loading data
+        document.addEventListener('DOMContentLoaded', loadData);
+        });
         
         // County Map Functions (from heatmap_filtering.html)
         function initializeCountyMap(fullData) {
@@ -767,99 +788,6 @@
         }
         });
         
-        // Function to use sample data when real data can't be loaded
-        function useSampleData() {
-            console.log("Using sample data instead");
-            
-            // Create sample data with the expected structure
-            const sampleData = generateSampleData(1000);
-            console.log("Sample data generated:", sampleData.slice(0, 3));
-            
-            // Process data
-            const processedData = processData(sampleData);
-            
-            // Update statistics cards
-            updateStatistics(processedData);
-            
-            // Create all visualizations
-            createSankeyDiagram(processedData);
-            createCarrierBar(processedData);
-            createHistogram(processedData);
-            createLineChart(processedData);
-            createPieChart(processedData);
-            createPickupHeatmap(processedData);
-            
-            // Initialize county map when tab is activated
-            d3.select('#county-map-tab').on('click', function() {
-                // Only initialize if it hasn't been created yet
-                if (!d3.select("#gMap").selectAll("*").size()) {
-                    initializeCountyMap(sampleData);
-                }
-            });
-        }
-        
-        // Function to generate sample data
-        function generateSampleData(count) {
-            const carriers = ["UPS", "USPS", "FedEx", "Amazon", "DHL"];
-            const states = ["CA", "NY", "TX", "FL", "IL", "PA", "OH", "GA", "NC", "MI"];
-            const counties = ["Los Angeles", "Cook", "Harris", "Maricopa", "San Diego", "Orange", "Kings", "Miami-Dade", "Dallas", "Queens"];
-            const fips = ["06037", "17031", "48201", "04013", "06073", "06059", "36047", "12086", "48113", "36081"];
-            
-            // Generate random date in the past year
-            function randomDate() {
-                const end = new Date();
-                const start = new Date(end);
-                start.setFullYear(start.getFullYear() - 1);
-                return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
-            }
-            
-            // Create sample data array
-            const data = [];
-            
-            for (let i = 0; i < count; i++) {
-                // Create base date for this package
-                const routedDate = randomDate();
-                
-                // Processing times (in hours)
-                const routedToStored = 1 + Math.random() * 24; // 1-25 hours
-                const storedToDelivered = 5 + Math.random() * 48; // 5-53 hours
-                
-                // Calculate other dates based on processing times
-                const storedDate = new Date(routedDate.getTime() + routedToStored * 60 * 60 * 1000);
-                const deliveredDate = new Date(storedDate.getTime() + storedToDelivered * 60 * 60 * 1000);
-                
-                // Random carrier, state, county, and FIPS
-                const carrierIndex = Math.floor(Math.random() * carriers.length);
-                const stateIndex = Math.floor(Math.random() * states.length);
-                
-                // Format dates as strings (MM/DD/YYYY HH:MM)
-                const formatDate = (date) => {
-                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                    const day = date.getDate().toString().padStart(2, '0');
-                    const year = date.getFullYear();
-                    const hours = date.getHours().toString().padStart(2, '0');
-                    const minutes = date.getMinutes().toString().padStart(2, '0');
-                    return `${month}/${day}/${year} ${hours}:${minutes}`;
-                };
-                
-                // Create package data
-                data.push({
-                    "Carrier": carriers[carrierIndex],
-                    "Routed Date Time": formatDate(routedDate),
-                    "Stored Date Time": formatDate(storedDate),
-                    "Delivered Date Time": formatDate(deliveredDate),
-                    "Origin State": states[stateIndex],
-                    "Origin County": counties[stateIndex],
-                    "County FIPS": fips[stateIndex],
-                    "Routed → Stored": routedToStored,
-                    "Stored → Delivered": storedToDelivered,
-                    "Total Processing Time": routedToStored + storedToDelivered
-                });
-            }
-            
-            return data;
-        }
-        
         // Load README (fallback to a default message if not available)
         d3.text("README.md").then(function(text) {
             d3.select("#readme-container").html(marked.parse(text));
@@ -881,21 +809,41 @@
         
         // Process data function
         function processData(data) {
+            console.log("Processing data...");
+            console.log("Sample record:", data[0]);
+            
+            // Try to detect date format from the first valid record
+            let dateFormat = detectDateFormat(data);
+            console.log("Detected date format:", dateFormat);
+            
             // Parse dates
             data.forEach(d => {
                 // Parse date strings to Date objects
                 ["Routed Date Time", "Stored Date Time", "Delivered Date Time"].forEach(col => {
                     if (d[col]) {
-                        const parts = d[col].split(/[/ :]/);
-                        // Month/Day/Year Hour:Minute format
-                        if (parts.length >= 5) {
-                            const month = parseInt(parts[0]) - 1; // 0-based months
-                            const day = parseInt(parts[1]);
-                            const year = parseInt(parts[2]);
-                            const hour = parseInt(parts[3]);
-                            const minute = parseInt(parts[4]);
-                            d[col] = new Date(year, month, day, hour, minute);
-                        } else {
+                        try {
+                            if (dateFormat === "mm/dd/yyyy") {
+                                const parts = d[col].split(/[/ :]/);
+                                // Month/Day/Year Hour:Minute format
+                                if (parts.length >= 5) {
+                                    const month = parseInt(parts[0]) - 1; // 0-based months
+                                    const day = parseInt(parts[1]);
+                                    const year = parseInt(parts[2]);
+                                    const hour = parseInt(parts[3]);
+                                    const minute = parseInt(parts[4]);
+                                    d[col] = new Date(year, month, day, hour, minute);
+                                } else {
+                                    d[col] = null;
+                                }
+                            } else {
+                                // Try standard Date parsing as fallback
+                                d[col] = new Date(d[col]);
+                                if (isNaN(d[col].getTime())) {
+                                    d[col] = null;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn(`Error parsing date ${d[col]}:`, e);
                             d[col] = null;
                         }
                     } else {
@@ -903,19 +851,42 @@
                     }
                 });
                 
-                // Calculate processing times if dates are valid
-                if (d["Routed Date Time"] && d["Stored Date Time"]) {
-                    d["Routed → Stored"] = (d["Stored Date Time"] - d["Routed Date Time"]) / (1000 * 60 * 60); // Hours
+                // Use existing processing time if available
+                if (d["Processing Time (Hours)"] && !isNaN(parseFloat(d["Processing Time (Hours)"]))) {
+                    d["Total Processing Time"] = parseFloat(d["Processing Time (Hours)"]);
                 }
-                
-                if (d["Stored Date Time"] && d["Delivered Date Time"]) {
-                    d["Stored → Delivered"] = (d["Delivered Date Time"] - d["Stored Date Time"]) / (1000 * 60 * 60); // Hours
-                }
-                
-                if (d["Routed Date Time"] && d["Delivered Date Time"]) {
-                    d["Total Processing Time"] = (d["Delivered Date Time"] - d["Routed Date Time"]) / (1000 * 60 * 60); // Hours
+                // Otherwise calculate processing times if dates are valid
+                else {
+                    if (d["Routed Date Time"] && d["Stored Date Time"]) {
+                        d["Routed → Stored"] = (d["Stored Date Time"] - d["Routed Date Time"]) / (1000 * 60 * 60); // Hours
+                    }
+                    
+                    if (d["Stored Date Time"] && d["Delivered Date Time"]) {
+                        d["Stored → Delivered"] = (d["Delivered Date Time"] - d["Stored Date Time"]) / (1000 * 60 * 60); // Hours
+                    }
+                    
+                    if (d["Routed Date Time"] && d["Delivered Date Time"]) {
+                        d["Total Processing Time"] = (d["Delivered Date Time"] - d["Routed Date Time"]) / (1000 * 60 * 60); // Hours
+                    }
                 }
             });
+            
+            // Function to detect date format from the first valid record
+            function detectDateFormat(data) {
+                for (let i = 0; i < Math.min(data.length, 10); i++) {
+                    const record = data[i];
+                    for (const field of ["Routed Date Time", "Stored Date Time", "Delivered Date Time"]) {
+                        if (record[field]) {
+                            const dateStr = record[field];
+                            // Check if it's in m/d/y format
+                            if (/^\d{1,2}\/\d{1,2}\/\d{4}\s\d{1,2}:\d{1,2}/.test(dateStr)) {
+                                return "mm/dd/yyyy";
+                            }
+                        }
+                    }
+                }
+                return "unknown";
+            }
             
             // Filter out entries with missing required dates
             const filteredData = data.filter(d => d["Routed Date Time"] && d["Delivered Date Time"]);
@@ -938,16 +909,22 @@
             
             // Top carrier
             const carrierCounts = d3.rollup(data, v => v.length, d => d.Carrier || "Unknown");
-            const topCarrier = [...carrierCounts].sort((a, b) => b[1] - a[1])[0][0];
+            const topCarrierArray = [...carrierCounts].sort((a, b) => b[1] - a[1]);
+            const topCarrier = topCarrierArray.length > 0 ? topCarrierArray[0][0] : "Unknown";
             d3.select("#top-carrier").text(`🚚 Top Carrier: ${topCarrier}`);
             
             // Average processing time
-            const avgTime = d3.mean(data, d => d["Total Processing Time"]);
+            const validTimes = data.filter(d => d["Total Processing Time"] && !isNaN(d["Total Processing Time"]));
+            const avgTime = validTimes.length > 0 ? 
+                d3.mean(validTimes, d => d["Total Processing Time"]) : 0;
             d3.select("#avg-time").text(`⏳ Avg. Processing Time: ${avgTime.toFixed(2)} Hours`);
         }
         
         // Create Sankey Diagram (converted from Python)
         function createSankeyDiagram(data) {
+            // Clear loading indicator
+            d3.select("#sankey-container").html("");
+            
             const width = document.getElementById('sankey-container').offsetWidth;
             const height = 500;
             
@@ -1052,6 +1029,9 @@
         
         // Create Carrier Bar Chart (Statistical Insights tab)
         function createCarrierBar(data) {
+            // Clear loading indicator
+            d3.select("#carrier-bar-container").html("");
+            
             const width = document.getElementById('carrier-bar-container').offsetWidth;
             const height = 400;
             const margin = { top: 30, right: 30, bottom: 70, left: 60 };
@@ -1132,12 +1112,17 @@
         
         // Create Histogram
         function createHistogram(data) {
+            // Clear loading indicator
+            d3.select("#histogram-container").html("");
+            
             const width = document.getElementById('histogram-container').offsetWidth;
             const height = 400;
             const margin = { top: 30, right: 30, bottom: 40, left: 60 };
             
-            // Filter out extreme outliers (processing times > 200 hours)
-            const filteredData = data.filter(d => d["Total Processing Time"] < 200);
+            // Filter out invalid data and extreme outliers (processing times > 200 hours)
+            const filteredData = data.filter(d => d["Total Processing Time"] && 
+                                               !isNaN(d["Total Processing Time"]) && 
+                                               d["Total Processing Time"] < 200);
             
             // Create SVG
             const svg = d3.select("#histogram-container").append("svg")
@@ -1223,6 +1208,9 @@
         
         // Create Line Chart
         function createLineChart(data) {
+            // Clear loading indicator
+            d3.select("#line-chart-container").html("");
+            
             const width = document.getElementById('line-chart-container').offsetWidth;
             const height = 400;
             const margin = { top: 30, right: 30, bottom: 50, left: 60 };
