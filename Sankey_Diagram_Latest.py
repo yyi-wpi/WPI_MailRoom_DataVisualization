@@ -9,6 +9,7 @@ import dash_bootstrap_components as dbc
 import os
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
+import socket
 
 # Load data
 file_path = "Cleaned_Package_Data_County.csv"  # Ensure this file is present in the working directory
@@ -23,7 +24,9 @@ df.dropna(subset=["Routed Date Time", "Delivered Date Time"], inplace=True)
 df['Routed → Stored'] = (df['Stored Date Time'] - df['Routed Date Time']).dt.total_seconds() / 3600
 df['Stored → Delivered'] = (df['Delivered Date Time'] - df['Stored Date Time']).dt.total_seconds() / 3600
 df['Total Processing Time'] = (df['Delivered Date Time'] - df['Routed Date Time']).dt.total_seconds() / 3600
-df.fillna(0, inplace=True)
+
+# Explicitly cast NaN values in datetime columns to a compatible type
+df[date_columns] = df[date_columns].fillna(pd.Timestamp('1970-01-01'))
 
 # Read README.md content
 with open("README.md", "r", encoding="utf-8") as file:
@@ -195,7 +198,13 @@ def open_browser():
 def start_local_server():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     handler = SimpleHTTPRequestHandler
-    httpd = TCPServer(("", 8000), handler)
+    port = 8000
+    while True:
+        try:
+            httpd = TCPServer(("", port), handler)
+            break
+        except OSError:
+            port += 1
     httpd.serve_forever()
 
 if __name__ == '__main__':
