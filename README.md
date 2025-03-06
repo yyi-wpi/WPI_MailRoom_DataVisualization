@@ -1,18 +1,22 @@
 Final Project - Interactive Data Visualization  
 ===
 
-**Our Process Book:** https://docs.google.com/document/d/18grehGqWMgrc9NdPCNpJVS-ceePdD1HHudDVrbT-1Mc/edit?tab=t.0#heading=h.h0wey3iuet52
+## Parts of our code:
+We did not place any pre-written libraries in our repository. All of the files present in the repository were created by members of the team.
 
-## Overview and Motivation
-The goal of this project is to visualize WPI post office package data over a 30-day period to gain insights into package processing efficiency, storage patterns, and potential bottlenecks. By analyzing timestamps from package routing to storage and final delivery, we can track how long packages remain in different stages and identify areas where delays may occur. The dataset, sourced directly from the WPI mailroom, excludes recipient names for privacy protection while retaining key details such as locker assignments, carriers, and processing times. Understanding these trends will help improve package handling efficiency, optimize locker usage, and provide a clearer picture of how the campus mail system operates. Using visualizations, particularly a Sankey diagram, we can illustrate the flow of packages through the system, highlighting areas where processing times could be improved to enhance the overall experience for WPI students and staff.
+## Libraries utilized:
+With that being said there are multiple libraries we utilized to do invaluable processing on our data for creating our final CSV passed into our visualizations.
+- GoShippo: https://goshippo.com/, this allowed for us to determine the origin location of packages using their tracking numbers.
+- GeoPy: https://geopy.readthedocs.io/en/stable/, this library allowed us to convert those origin locations into counties for easier grouping.
+- AddFIPS: https://github.com/fitnr/addfips/, this library allowed us to fill in FIPS code data for the found counties. This code number was needed for filling our county heat map.
+- US Atlas TopoJSON: https://github.com/topojson/us-atlas/, this library contained pre-generated geoJSON files for mapping out the counties and states of the US. This enabled our process of filling a county map in the first place.
 
-## Database Cleaning and Processing
-The original dataset from the WPI post office contained package tracking information spanning 30 days, capturing key details such as tracking numbers, locker assignments, carrier names, and timestamps for different stages of processing. However, the raw data also included inconsistencies, missing values, and unstructured fields that required preprocessing before analysis. Some columns, such as "Notes", were unnecessary, while others, like "Routed Date Time" and "Stored Date Time", had missing entries that needed to be addressed. The "Tracking #" field contained trailing underscores, and the "Location 1" column mixed undergrad and grad student package assignments without a clear distinction. Additionally, the "Origin City" and "Origin State" fields were incomplete in some cases, affecting the accuracy of geographic analysis. To prepare the dataset for visualization, we performed several cleaning and processing steps to ensure consistency and reliability. Missing values in critical columns were filled, tracking numbers were standardized, and a "Bank_Locker" identifier was created by combining locker bank and locker number to facilitate storage analysis. The timestamps for when packages were routed, stored, and delivered were converted into datetime format, allowing us to compute processing durations accurately. To enhance geographic tracking, the dataset was merged with an external city-to-county mapping file, filling in missing "Origin County" values where possible. There were many entries with proper city-state information that weren't given a county column entry after this process. To fix this, a new python script was created that would load in the CSV and use the “geopy” library to retrieve the county for a city-state tuple. These counties were saved to an output CSV as well as a temporarily stored dictionary. This dictionary sped up the process, bypassing the need to call to “geopy” if the county was already found. With numerous packages coming from the same cities in Massachusetts this optimization worked wonderfully. After these refinements, the cleaned dataset provided a structured and reliable foundation for analyzing package flow, processing times, and overall post office efficiency.
+## Links to our other stuff:
+- Website: https://woosterum.github.io/final/
+- Screencast Video: https://www.youtube.com/watch?v=I8-Nu6m1iRM/
 
-## Related Work
-To visualize the package flow and processing times, we used a Sankey diagram, referencing the figure we posted above, to represent how long each package stays in different locations before being processed. Our cleaned dataset includes key timestamps: "Routed Date Time", "Stored Date Time", and "Delivered Date Time", which allow us to track the time spent at each stage of the process. The flow will start from the package’s arrival at the facility (Routed Date Time), moving to locker storage (Stored Date Time), and finally to delivery or pickup (Delivered Date Time). Each node in the Sankey diagram will represent a processing stage, including possible paths such as locker assignment, carrier pickup, and customer retrieval. The width of the connections will indicate the volume of packages transitioning between these stages, and the time spent at each stage can be color-coded to highlight delays or inefficiencies. Additionally, we can incorporate locker bank utilization by breaking down processing times per "Bank_Locker", identifying which locker areas experience the most congestion. If "Carrier" information is available, we can analyze differences in processing times for different shipping companies, helping to optimize workflows and improve package management within the post office system. This visualization will provide actionable insights into bottlenecks and operational efficiency.
-
-
-## Exploratory Data Analysis
-
-
+## Non-obvious Interface Features
+- Most chart visualizations have zoom and cropping by selecting an area with your mouse.
+- All visualizations have additional info from hovering over certain areas.
+- The county heat map can be zoomed in on using your scroll wheel.
+- The "Process Book" and "Data Source" links in "Discussion" will start a download for the PDF and CSV of the respective files.
