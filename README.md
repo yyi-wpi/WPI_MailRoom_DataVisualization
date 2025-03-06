@@ -14,5 +14,19 @@ To visualize the package flow and processing times, we used a Sankey diagram, re
 
 
 ## Exploratory Data Analysis
-- We found that the majority of packages were from Amazon, followed by USPS and FedEx. The average processing time for packages was 1,242 hours. 
+Our exploratory data analysis began with examining the raw package tracking data from the WPI post office system to understand its structure, identify patterns, and uncover potential insights that would guide our visualization design. Initial inspection revealed a diverse dataset containing key timestamps for package processing, carrier information, locker assignments, and geographic origin data, though with varying levels of completeness.
+
+We first explored the temporal aspects of package processing by analyzing the timestamps for routing, storage, and delivery. Converting these timestamps to datetime format allowed us to calculate processing durations at each stage. This analysis revealed considerable variation in total processing times, with a right-skewed distribution showing most packages being processed relatively quickly but with a long tail of delays. The median time from routing to delivery was significantly lower than the mean (1241.46 hours), indicating outliers that affected the average processing time.
+
+Geographic analysis of package origins presented both challenges and opportunities. Many packages, particularly those from Amazon, lacked specific origin information. For those with available city-state data, we used the geopy library to retrieve county information and merged this with FIPS codes to enable mapping. This revealed concentrated clusters of package origins in counties around Massachusetts, but also surprising volumes from distant locations like Cook County (Chicago) and counties in California, suggesting potential institutional relationships or student demographic patterns.
+
+Carrier distribution analysis showed Amazon's dominance in the package ecosystem, handling approximately 40% of all packages, followed by USPS, FedEx, and Parcelforce as significant contributors. This insight proved valuable for understanding systemwide processing patterns, as each carrier demonstrated different efficiency metrics. The wide range of carriers (over 10) highlighted the complexity of the mail routing system.
+
+Temporal patterns in package pickup behavior emerged when analyzing delivery timestamps by hour and day of week. Regardless of the day, student pickup activity concentrated between 12pm and 4pm, with clear peaks around 2pm on weekdays. Weekend activity showed lower overall volume but similar time-of-day patterns. This insight directly informed our decision to create a dedicated pickup heatmap visualization.
+
+Locker bank utilization analysis revealed uneven distribution of package storage, with certain banks experiencing higher traffic and potentially creating bottlenecks in the system. By combining this with carrier and processing time data, we identified opportunities for optimization in locker assignment strategies.
+
+The initial relationship exploration between carriers, processing times, and geographic origins guided our decision to implement a Sankey diagram to visualize package flow through the system. Early prototyping with the county heat map demonstrated the need for logarithmic scaling to address the extreme concentration of packages in Worcester County while still visualizing meaningful patterns across the country.
+
+These exploratory findings directly shaped our visualization design decisions, leading us to focus on geographic distribution, temporal patterns, carrier efficiency, and system flow as the key aspects to represent in our final dashboard implementation. The EDA process also highlighted data quality issues that needed to be addressed, particularly in standardizing tracking numbers, filling missing geolocation data, and ensuring consistent datetime formatting across the dataset.
 
