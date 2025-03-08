@@ -1,0 +1,11 @@
+Location 1,Locker Number,Locker Bank,Carrier,Tracking #,Transaction Status ,Routed Date Time,Stored Date Time,Delivered Date Time,Origin City,Origin State,Origin Zip,Origin Country,Bank_Locker,Undergrad_Box,Grad_Box,Processing Time (Hours),Origin County
+5283,2,Bank 7,Amazon,TBA319025875790,Delivered,Unknown,1/29/2025 11:28,1/31/2025 22:17,,,,,Bank 7 Locker 2.0,5283,,58.81666667,
+1539,75,Bank 8,FedEx,2.85E+11,Delivered,Unknown,1/30/2025 13:09,1/31/2025 21:34,Bend,OR,,US,Bank 8 Locker 75.0,1539,,32.41666667,Deschutes
+4821,35,Bank 5,Parcelforce,RN073557608JP,Delivered,Unknown,1/30/2025 9:04,1/31/2025 21:13,,,,,Bank 5 Locker 35.0,4821,,36.15,
+6915,22,Bank 6,USPS,9.30E+21,Delivered,Unknown,1/29/2025 8:59,1/31/2025 21:09,Alpharetta,GA,30004,US,Bank 6 Locker 22.0,6915,,60.16666667,Fulton
+2728,86,Bank 6,FedEx,2.85E+11,Delivered,Unknown,1/31/2025 12:33,1/31/2025 21:04,Boca Raton,FL,,US,Bank 6 Locker 86.0,2728,,8.516666667,Palm Beach
+5996,34,Bank 8,LaserShip,1LSD098004KXWQF,Delivered,Unknown,1/29/2025 12:43,1/31/2025 20:51,,,,,Bank 8 Locker 34.0,5996,,56.13333333,
+5996,65,Bank 8,LaserShip,1LSD098004KXWQO,Delivered,Unknown,1/29/2025 12:34,1/31/2025 20:51,,,,,Bank 8 Locker 65.0,5996,,56.28333333,
+1859,47,Bank 5,UPS,1Z8R3V040396439270,Delivered,Unknown,1/30/2025 10:59,1/31/2025 20:46,Bridgeton,MO,63044,US,Bank 5 Locker 47.0,1859,,33.78333333,St. Louis
+5648,45,Bank 6,FedEx,4.35E+11,Delivered,Unknown,1/31/2025 12:32,1/31/2025 20:15,Boylston,MA,,US,Bank 6 Locker 45.0,5648,,7.716666667,
+6452,53,Bank 3,Amazon,TBA319082193611,Delivered,Unknown,1/31/2025 12:06,1/31/2025 20:05,,,,,Bank 3 Locker 53.0,6452,,7.983333333
